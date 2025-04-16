@@ -1,0 +1,48 @@
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# BlueJ files (if used)
+*.ctxt
+
+# Mobile Tool Developement files (if used)
+*.jar
+*.nbjdwp
+
+# Package Files #
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+
+# Eclipse directory
+.settings/
+bin/
+tmp/
+.metadata/
+.classpath
+.project
+
+# IntelliJ IDEA directory
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# NetBeans directory
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+nbactions.xml
+*.nbattrs
