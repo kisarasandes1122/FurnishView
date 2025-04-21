@@ -3,163 +3,119 @@ import com.jogamp.opengl.GL2;
 
 public class CameraManager {
 
-    // Camera state
-    private float angleX = 30.0f;   // Pitch (degrees)
-    private float angleY = -45.0f;  // Yaw (degrees)
-    private float distance = 10.0f; // Distance from the target
-    private Vector3f target = new Vector3f(2.5f, 0.1f, 2.5f); // Initial target guess (center of default 5x5 room)
+    private float angleX = 30.0f;
+    private float angleY = -45.0f;
+    private float distance = 10.0f;
+    private Vector3f target = new Vector3f(0.0f, 1.0f, 0.0f); // Default target
 
-    // View mode
     private boolean is3DMode = true;
-
-    // Store room dimensions for calculations (like default distance)
+    // Store room dimensions if needed for calculations other than centering
     private float roomWidthForCalc = 5.0f;
     private float roomLengthForCalc = 5.0f;
-    private float roomRadiusForCalc = 0.0f; // For circular rooms
-    // Add fields for L/T shapes if needed for distance calc later
+
 
     public CameraManager() {
-        // Constructor - initial state is set above
+        // DO NOT call resetTargetToCenter here. It will be called later
+        // when the Room object is available.
+        // resetTargetToCenter(); // REMOVE THIS
     }
 
-    // Method to update internal dimensions based on the Room object
-    // Called by DesignRenderer or MainAppFrame when the room changes
-    public void updateRoomDimensions(Room room) {
-        if (room == null) return;
-
-        switch (room.getShape()) {
-            case RECTANGULAR:
-                this.roomWidthForCalc = room.getWidth();
-                this.roomLengthForCalc = room.getLength();
-                this.roomRadiusForCalc = 0;
-                break;
-            case CIRCULAR:
-                this.roomRadiusForCalc = room.getRadius();
-                // Use diameter for general size estimation
-                this.roomWidthForCalc = room.getRadius() * 2.0f;
-                this.roomLengthForCalc = room.getRadius() * 2.0f;
-                break;
-            case L_SHAPED:
-                // Use outer dimensions for general size
-                this.roomWidthForCalc = room.getL_outerWidth();
-                this.roomLengthForCalc = room.getL_outerLength();
-                this.roomRadiusForCalc = 0;
-                break;
-            case T_SHAPED:
-                // Use bar width and total length for general size
-                this.roomWidthForCalc = room.getT_barWidth();
-                this.roomLengthForCalc = room.getT_barLength() + room.getT_stemLength();
-                this.roomRadiusForCalc = 0;
-                break;
-            default:
-                this.roomWidthForCalc = 5.0f; // Fallback
-                this.roomLengthForCalc = 5.0f;
-                this.roomRadiusForCalc = 0;
-                break;
-        }
-        // Update distance based on new dimensions and current mode
-        updateDistanceForMode(this.is3DMode);
+    // Keep this method if other calculations need dimensions
+    public void setRoomDimensions(float width, float length) {
+        this.roomWidthForCalc = width;
+        this.roomLengthForCalc = length;
     }
 
-
-    // Reset the camera target to the center of the given room
+    // Modified resetTargetToCenter - requires Room object
     public void resetTargetToCenter(Room room) {
-        if (room != null) {
-            Vector3f center = room.calculateCenter();
-            this.target = center; // Use the calculated center
-            // Adjust Y slightly depending on mode
-            this.target.y = is3DMode ? 0.1f : 0.0f;
-            // Update internal dimensions used for distance calculation
-            updateRoomDimensions(room); // This will also call updateDistanceForMode
-        } else {
-            // Fallback if room is null
-            this.target = new Vector3f(2.5f, 0.1f, 2.5f);
-            this.roomWidthForCalc = 5.0f;
-            this.roomLengthForCalc = 5.0f;
-            this.roomRadiusForCalc = 0;
-            updateDistanceForMode(this.is3DMode); // Update distance with defaults
+        if (room == null) {
+            this.target.x = 2.5f;
+            this.target.y = 0.1f;
+            this.target.z = 2.5f;
+            this.distance = 10.0f; // Reset distance too
             System.err.println("CameraManager: resetTargetToCenter called with null Room. Using defaults.");
+            return;
         }
+        Vector3f center = room.calculateCenter();
+        this.target.x = center.x;
+        this.target.y = 0.1f;
+        this.target.z = center.z;
+
+        // Adjust default distance based on overall size (using Room methods)
+        float extent = 5.0f;
+        switch(room.getShape()){
+            case RECTANGULAR: extent = Math.max(room.getWidth(), room.getLength()); break;
+            case CIRCULAR: extent = room.getRadius() * 2.0f; break;
+            case L_SHAPED: extent = Math.max(room.getL_outerWidth(), room.getL_outerLength()); break;
+            case T_SHAPED: extent = Math.max(room.getT_barWidth(), room.getT_barLength() + room.getT_stemLength()); break;
+        }
+        // Use a minimum extent to prevent issues with very small rooms
+        extent = Math.max(1.0f, extent);
+        float roomDiagonal = (float) Math.sqrt(extent * extent + extent * extent);
+        // Adjust distance based on mode AFTER resetting target
+        updateDistanceForMode(is3DMode, roomDiagonal); // Call helper
     }
 
-    // Set the view mode (3D perspective or 2D orthographic)
+
     public void setMode(boolean is3D) {
         boolean changed = this.is3DMode != is3D;
         this.is3DMode = is3D;
 
         if (changed) {
-            // Reset angles and update distance/target Y based on mode
+            // DO NOT call resetTargetToCenter here. It will be called by
+            // the calling code (e.g., MainAppFrame or DesignRenderer) which has the Room object.
+            // resetTargetToCenter(); // REMOVE THIS
+
+            // Reset angles and update distance based on current room size (if available)
+            float currentDiagonal = (float) Math.sqrt(roomWidthForCalc * roomWidthForCalc + roomLengthForCalc * roomLengthForCalc);
             if (is3D) {
                 angleX = 30.0f;
                 angleY = -45.0f;
                 target.y = 0.1f; // Slightly above floor for 3D target
+                updateDistanceForMode(true, currentDiagonal);
             } else { // 2D
-                angleX = 90.0f; // Look straight down
-                angleY = 0.0f;  // Align with Z axis
+                angleX = 90.0f;
+                angleY = 0.0f;
                 target.y = 0.0f; // Target directly on floor plane for 2D ortho
+                updateDistanceForMode(false, currentDiagonal);
             }
-            updateDistanceForMode(is3D); // Recalculate appropriate distance
         }
     }
 
-    // Helper to calculate a suitable distance based on room size and mode
-    private void updateDistanceForMode(boolean is3D) {
-        // Estimate room extent based on available dimensions
-        float extent = Math.max(1.0f, Math.max(roomWidthForCalc, roomLengthForCalc));
-        if (roomRadiusForCalc > 0) {
-            extent = Math.max(extent, roomRadiusForCalc * 2.0f);
-        }
-        float roomDiagonal = (float) Math.sqrt(extent * extent + extent * extent);
-
+    // Helper to consolidate distance logic
+    private void updateDistanceForMode(boolean is3D, float roomDiagonal) {
         if (is3D) {
-            // In 3D, distance is based on diagonal for a good overview
             distance = Math.max(10.0f, roomDiagonal * 1.2f);
         } else { // 2D
-            // In 2D ortho, distance effectively controls the ortho view scale (height/width)
-            // Base it on the maximum dimension to ensure the whole room fits initially
-            distance = Math.max(5.0f, extent * 1.1f); // Ensure a minimum ortho size
+            // Use max dimension for ortho distance base
+            float maxDim = Math.max(roomWidthForCalc, roomLengthForCalc);
+            distance = Math.max(5.0f, maxDim * 1.1f); // Ensure a minimum ortho size
         }
         distance = Math.max(1.0f, distance); // Global minimum distance
     }
 
 
-    // Rotate the camera based on mouse delta
     public void rotate(float deltaX, float deltaY) {
-        if (!is3DMode) return; // No rotation in 2D top-down view
-
-        // Sensitivity factor for rotation
-        float sensitivity = 0.5f;
-        angleY += deltaX * sensitivity; // Yaw
-        angleX += deltaY * sensitivity; // Pitch
-
-        // Clamp pitch to avoid flipping upside down
+        // ... (no changes needed)
+        if (!is3DMode) return;
+        angleY += deltaX * 0.5f;
+        angleX += deltaY * 0.5f;
         angleX = Math.max(-89.9f, Math.min(89.9f, angleX));
-
-        // Keep yaw within 0-360 or -180 to 180 if desired (optional)
-        // angleY %= 360.0f;
     }
 
-    // Zoom the camera based on mouse wheel or drag delta
     public void zoom(float delta) {
-        // Sensitivity factor - adjust as needed
-        // For ortho, zoom should be relative to current distance/scale
-        float zoomFactor = is3DMode ? 0.5f : distance * 0.1f;
-        distance -= delta * zoomFactor; // Subtract because delta > 0 usually means zoom in (decrease distance)
-
-        // Clamp distance to prevent going too close or too far
-        distance = Math.max(1.0f, distance); // Minimum distance
-        // distance = Math.min(100.0f, distance); // Optional maximum distance
+        // ... (no changes needed)
+        float zoomFactor = is3DMode ? 0.5f : distance * 0.1f; // Ortho zoom is relative
+        distance += delta * zoomFactor;
+        distance = Math.max(1.0f, distance);
     }
 
-    // Pan the camera target based on mouse delta
     public void pan(float deltaX, float deltaY, int viewWidth, int viewHeight) {
+        // ... (no changes needed)
         float sensitivity;
-
         if (is3DMode) {
-            // Panning sensitivity scales with distance in perspective view
             sensitivity = 0.005f * distance;
 
-            // Calculate camera's local right and up vectors based on current angles
             float camXRad = (float)Math.toRadians(angleX);
             float camYRad = (float)Math.toRadians(angleY);
             float cosPitch = (float)Math.cos(camXRad);
@@ -167,71 +123,82 @@ public class CameraManager {
             float cosYaw = (float)Math.cos(camYRad);
             float sinYaw = (float)Math.sin(camYRad);
 
-            // Calculate Right vector (simplified, assumes world up is (0,1,0))
+            // Forward vector (towards target from eye)
+            float forwardX = -cosPitch * sinYaw;
+            float forwardY = -sinPitch;
+            float forwardZ = -cosPitch * cosYaw;
+
+            // Recalculate right and up vectors based on angles
+            // Right vector (cross product of view direction and world up) - simplified
+            Vector3f worldUp = new Vector3f(0, 1, 0);
+            Vector3f viewDir = new Vector3f(forwardX, forwardY, forwardZ); // Actually points eye -> target
+
+            // Need direction from eye TO target for panning calc? Let's test.
+            // No, use the camera's orientation vectors directly.
+
+            // Right vector = cross(Front, WorldUp) - careful with direction
+            // Front is direction camera is looking AT.
+            // If eye is target + dist * offset, then direction is -offset
+            // Let's use the standard cross product method based on Yaw/Pitch
+
             Vector3f right = new Vector3f((float)Math.cos(camYRad), 0, -(float)Math.sin(camYRad));
             right.normalize(); // Ensure unit vector
 
-            // Calculate Up vector (derived from cross product or angles)
-            // Using angles: Careful calculation needed near poles.
-            // Simpler approach: Assume world up unless near pole, or use cross product reliably.
-            // Let's try the angle-derived Up vector:
+            // Up vector = cross(Right, Forward) - Front = -Forward
+            // Need the actual camera's up vector derived from angles
             Vector3f up = new Vector3f( sinPitch * sinYaw, cosPitch, sinPitch * cosYaw);
             up.normalize();
 
             // Adjust target based on panning delta projected onto camera's right and up
-            // Moving mouse right (positive deltaX) should move target left relative to camera's right vector
             target.x -= (deltaX * right.x) * sensitivity;
-            target.z -= (deltaX * right.z) * sensitivity; // Apply Z component of right vector
-
-            // Moving mouse down (positive deltaY) should move target down relative to camera's up vector
-            // (Screen Y is inverted, so positive deltaY is down)
-            target.x -= (deltaY * up.x) * sensitivity;
+            target.z -= (deltaX * right.z) * sensitivity;
+            target.x -= (deltaY * up.x) * sensitivity; // Subtract because screen Y is inverted
             target.y -= (deltaY * up.y) * sensitivity;
             target.z -= (deltaY * up.z) * sensitivity;
 
+
         } else { // 2D Ortho Panning
             // Calculate how much the view covers in world units
-            // Distance is effectively related to the ortho view height/width scale
-            float orthoHeightView = distance; // Or however ortho scale is set up
+            // Distance is effectively the ortho height scale here
+            float orthoHeightView = distance;
             float aspect = (float)viewWidth / Math.max(1, viewHeight);
             float orthoWidthView = orthoHeightView * aspect;
 
             // Convert screen pixel delta to world unit delta
             float worldDeltaX = deltaX * (orthoWidthView / Math.max(1, viewWidth));
-            // Screen Y down is world Z positive in typical top-down view
-            float worldDeltaZ = deltaY * (orthoHeightView / Math.max(1, viewHeight));
+            float worldDeltaZ = deltaY * (orthoHeightView / Math.max(1, viewHeight)); // Screen Y up is World Z negative (usually)
 
-            // Adjust target. Moving mouse right (positive dx) should move the target left.
+            // Adjust target. In ortho top-down, moving mouse right (positive dx)
+            // should move the target left (negative target.x change) to make the world
+            // appear to move right under the mouse. Moving mouse down (positive dy)
+            // should move target up (positive target.z change).
             target.x -= worldDeltaX;
-            // Moving mouse down (positive dy) should move target "up" (positive Z).
-            target.z += worldDeltaZ;
+            target.z += worldDeltaZ; // Add because screen Y down is world Z positive
         }
     }
 
 
-    // Apply projection matrix (Perspective or Orthographic)
     public void applyProjection(GL2 gl, GLU glu, float aspect) {
+        // ... (no changes needed)
         gl.glMatrixMode(GL2.GL_PROJECTION);
         gl.glLoadIdentity();
 
         if (is3DMode) {
-            // Perspective view
-            glu.gluPerspective(45.0f, aspect, 0.1f, 200.0f); // Field of view, aspect, near, far
+            glu.gluPerspective(45.0f, aspect, 0.1f, 200.0f); // Increased far plane
         } else {
-            // Orthographic view (top-down)
-            // Distance controls the zoom level (how much area is visible)
+            // Ortho view: distance controls the zoom level (view height)
             float orthoHeightView = distance; // Use distance as height scale
             float orthoWidthView = orthoHeightView * aspect;
-            // Center the view on the target coordinates in the XZ plane
-            gl.glOrtho(target.x - orthoWidthView / 2.0f, target.x + orthoWidthView / 2.0f, // left, right
-                    target.z - orthoHeightView / 2.0f, target.z + orthoHeightView / 2.0f, // bottom, top (corresponds to -Z/+Z)
-                    -100.0, 100.0);                     // near, far clipping planes for ortho
+            // Center the view on the target coordinates
+            gl.glOrtho(target.x - orthoWidthView / 2.0f, target.x + orthoWidthView / 2.0f,
+                    target.z - orthoHeightView / 2.0f, target.z + orthoHeightView / 2.0f, // Bottom, Top corresponds to -Z/+Z in top-down
+                    -100.0, 100.0); // Near, Far planes for ortho
         }
-        gl.glMatrixMode(GL2.GL_MODELVIEW); // Switch back for LookAt
+        gl.glMatrixMode(GL2.GL_MODELVIEW); // Switch back
     }
 
-    // Apply modelview matrix (LookAt)
     public void applyLookAt(GL2 gl, GLU glu) {
+        // ... (logic for calculating eye position based on angles/distance/target is fine)
         gl.glMatrixMode(GL2.GL_MODELVIEW);
         gl.glLoadIdentity();
 
@@ -239,58 +206,62 @@ public class CameraManager {
         float upX, upY, upZ;
 
         if (is3DMode) {
-            // Calculate eye position based on target, distance, and angles
             float camXRad = (float) Math.toRadians(angleX);
             float camYRad = (float) Math.toRadians(angleY);
 
+            // Calculate eye position relative to target
             eyeX = target.x + distance * (float)(Math.cos(camXRad) * Math.sin(camYRad));
             eyeY = target.y + distance * (float)(Math.sin(camXRad));
             eyeZ = target.z + distance * (float)(Math.cos(camXRad) * Math.cos(camYRad));
 
-            // Determine the Up vector - typically (0, 1, 0)
-            // Handle looking nearly straight up or down (gimbal lock approximation)
+            // Determine the Up vector
+            // Standard up is (0, 1, 0) unless looking nearly straight up/down
             if (Math.abs(angleX) > 89.5f) {
-                // If looking straight down (angleX near -90), Up should point along positive Z axis for angleY=0
-                // If looking straight up (angleX near +90), Up should point along negative Z axis for angleY=0
-                // General case: Use the direction the camera would face horizontally as Up vector
-                upX = 0; // Simplified: avoid complex roll calculation for now
+                // Looking straight down/up, Up vector needs to flip based on Yaw
+                // Let Up be aligned with the direction the camera *would* be facing horizontally
+                upX = (float) Math.sin(camYRad); // Should be 0 if aligned with Z
                 upY = 0;
-                upZ = (angleX > 0) ? -1.0f : 1.0f; // Simplistic flip based on pitch pole
-                // A more robust approach involves calculating the camera's right vector and crossing it
-                // with the forward vector, but (0,1,0) works for most cases.
-                // Let's stick to the standard (0,1,0) unless very close to pole, where gluLookAt handles it reasonably.
-                upX = 0; upY = 1; upZ = 0;
+                upZ = (float) Math.cos(camYRad); // Should be -1 or 1 if aligned with Z
+                // Make sure the sign points "forward" relative to camera roll (which we don't have)
+                // A simpler approximation for near-vertical: Use Z axis slightly tilted by yaw
+                // If looking straight down (angleX ~ -90), up should be towards +Z based on yaw=0
+                // If angleX is positive (looking up), up should be Z based on yaw=180?
+                // Let's stick to world up unless near pole.
+                // The previous logic was actually better for pole handling:
+                float upSign = Math.signum(angleX); // Use angle sign
+                upX = 0; // Assume no roll - this might be the issue near poles. Let's revert slightly.
+                // upX = upSign * (float)Math.sin(camXRad) * (float)Math.sin(camYRad); // Original 'up' derived up vector
+                // upY = upSign * (float)Math.cos(camXRad);
+                // upZ = upSign * (float)Math.sin(camXRad) * (float)Math.cos(camYRad);
+                // If angleX is near 90, cos(camXRad) is near 0. sin(camXRad) is near 1.
+                // Let's try standard up unless EXTREMELY close to pole.
+                upX = 0;
+                upY = 1;
+                upZ = 0;
+
             } else {
                 upX = 0;
-                upY = 1; // Standard world up vector
+                upY = 1;
                 upZ = 0;
             }
         } else { // 2D Ortho Top-Down
-            // Eye is directly above the target
             eyeX = target.x;
-            eyeY = distance; // Height above the floor plane (using distance as height)
+            eyeY = distance; // Eye is directly above target at 'distance' height
             eyeZ = target.z;
-
-            // Up vector for top-down view:
-            // Which direction in world space should correspond to "up" on the screen?
-            // Usually, we want positive Z in world to be "up" on screen.
             upX = 0;
-            upY = 0;
-            upZ = 1; // Points towards positive Z (which is often 'up' on a 2D map)
-            // If screen Y should map to negative Z, use -1. Let's assume Z+ is screen Y+.
+            upY = 0;  // For top-down view, "up" direction on screen...
+            upZ = -1; // ...corresponds to negative Z axis in world space (forward)
         }
 
-        // Apply the look-at transformation
-        glu.gluLookAt(eyeX, eyeY, eyeZ,           // Eye position
+        glu.gluLookAt(eyeX, eyeY, eyeZ,      // Eye position
                 target.x, target.y, target.z, // Target position
-                upX, upY, upZ);              // Up vector direction
+                upX, upY, upZ);               // Up vector
     }
 
-    // --- Getters ---
     public float getDistance() { return distance; }
     public Vector3f getTarget() { return target; }
     public boolean is3DMode() { return is3DMode; }
-    public float getAngleX() { return angleX; }
-    public float getAngleY() { return angleY; }
+
+
 
 }

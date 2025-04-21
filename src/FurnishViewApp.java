@@ -1,6 +1,6 @@
 import javax.swing.*;
 
-class FurnitureVisualizerApp {
+class FurnishViewApp {
     public static void main(String[] args) {
         // Set look and feel (optional, but often improves appearance)
         try {
@@ -15,10 +15,6 @@ class FurnitureVisualizerApp {
             // Start with the Login Frame
             LoginFrame loginFrame = new LoginFrame();
             loginFrame.setVisible(true);
-
-            // Alternatively, bypass login for faster testing:
-            // MainAppFrame mainApp = new MainAppFrame();
-            // mainApp.setVisible(true);
         });
     }
 }

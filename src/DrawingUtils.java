@@ -2,6 +2,8 @@ import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL2;
 import java.awt.Color;
 
+// Assume Vector3f class is available (defined in CameraManager or separately)
+
 public class DrawingUtils {
 
     /** Sets the current OpenGL color and material properties. */
@@ -14,8 +16,12 @@ public class DrawingUtils {
 
         // Set material properties for lighting
         float[] materialColor = {colorComponents[0], colorComponents[1], colorComponents[2], 1.0f};
-        // Use AMBIENT_AND_DIFFUSE for simplicity when GL_COLOR_MATERIAL is enabled
         gl.glMaterialfv(GL2.GL_FRONT, GL2.GL_AMBIENT_AND_DIFFUSE, materialColor, 0);
+        // Consider setting default specular/shininess here if desired
+        // float[] matSpecular = { 0.2f, 0.2f, 0.2f, 1.0f };
+        // float[] matShininess = { 10.0f };
+        // gl.glMaterialfv(GL2.GL_FRONT, GL2.GL_SPECULAR, matSpecular, 0);
+        // gl.glMaterialfv(GL2.GL_FRONT, GL2.GL_SHININESS, matShininess, 0);
     }
 
     /** Draws a solid box centered at the current origin. */
@@ -26,17 +32,15 @@ public class DrawingUtils {
 
         gl.glBegin(GL2.GL_QUADS);
 
-        // Bottom face (-Y) - Normal (0, -1, 0)
+        // Bottom face (-Y)
         gl.glNormal3f(0, -1, 0);
         if(hasTexture) gl.glTexCoord2f(0,0); gl.glVertex3f(-halfX, -halfY, -halfZ);
         if(hasTexture) gl.glTexCoord2f(1,0); gl.glVertex3f( halfX, -halfY, -halfZ);
         if(hasTexture) gl.glTexCoord2f(1,1); gl.glVertex3f( halfX, -halfY,  halfZ);
         if(hasTexture) gl.glTexCoord2f(0,1); gl.glVertex3f(-halfX, -halfY,  halfZ);
-        // Draw vertices even if no texture for solid color
         if(!hasTexture) { gl.glVertex3f(-halfX, -halfY, -halfZ); gl.glVertex3f( halfX, -halfY, -halfZ); gl.glVertex3f( halfX, -halfY,  halfZ); gl.glVertex3f(-halfX, -halfY,  halfZ); }
 
-
-        // Top face (+Y) - Normal (0, 1, 0)
+        // Top face (+Y)
         gl.glNormal3f(0, 1, 0);
         if(hasTexture) gl.glTexCoord2f(0,1); gl.glVertex3f(-halfX,  halfY,  halfZ);
         if(hasTexture) gl.glTexCoord2f(1,1); gl.glVertex3f( halfX,  halfY,  halfZ);
@@ -44,7 +48,7 @@ public class DrawingUtils {
         if(hasTexture) gl.glTexCoord2f(0,0); gl.glVertex3f(-halfX,  halfY, -halfZ);
         if(!hasTexture) { gl.glVertex3f(-halfX,  halfY,  halfZ); gl.glVertex3f( halfX,  halfY,  halfZ); gl.glVertex3f( halfX,  halfY, -halfZ); gl.glVertex3f(-halfX,  halfY, -halfZ); }
 
-        // Front face (+Z) - Normal (0, 0, 1)
+        // Front face (+Z)
         gl.glNormal3f(0, 0, 1);
         if(hasTexture) gl.glTexCoord2f(0,0); gl.glVertex3f(-halfX, -halfY,  halfZ);
         if(hasTexture) gl.glTexCoord2f(1,0); gl.glVertex3f( halfX, -halfY,  halfZ);
@@ -52,24 +56,23 @@ public class DrawingUtils {
         if(hasTexture) gl.glTexCoord2f(0,1); gl.glVertex3f(-halfX,  halfY,  halfZ);
         if(!hasTexture) { gl.glVertex3f(-halfX, -halfY,  halfZ); gl.glVertex3f( halfX, -halfY,  halfZ); gl.glVertex3f( halfX,  halfY,  halfZ); gl.glVertex3f(-halfX,  halfY,  halfZ); }
 
-        // Back face (-Z) - Normal (0, 0, -1)
+        // Back face (-Z)
         gl.glNormal3f(0, 0, -1);
-        if(hasTexture) gl.glTexCoord2f(1,0); gl.glVertex3f(-halfX, -halfY, -halfZ); // Flipped U coord? Check if needed
+        if(hasTexture) gl.glTexCoord2f(1,0); gl.glVertex3f(-halfX, -halfY, -halfZ);
         if(hasTexture) gl.glTexCoord2f(1,1); gl.glVertex3f(-halfX,  halfY, -halfZ);
         if(hasTexture) gl.glTexCoord2f(0,1); gl.glVertex3f( halfX,  halfY, -halfZ);
         if(hasTexture) gl.glTexCoord2f(0,0); gl.glVertex3f( halfX, -halfY, -halfZ);
         if(!hasTexture) { gl.glVertex3f(-halfX, -halfY, -halfZ); gl.glVertex3f(-halfX,  halfY, -halfZ); gl.glVertex3f( halfX,  halfY, -halfZ); gl.glVertex3f( halfX, -halfY, -halfZ); }
 
-
-        // Left face (-X) - Normal (-1, 0, 0)
+        // Left face (-X)
         gl.glNormal3f(-1, 0, 0);
-        if(hasTexture) gl.glTexCoord2f(1,0); gl.glVertex3f(-halfX, -halfY, -halfZ); // Flipped U coord? Check if needed
+        if(hasTexture) gl.glTexCoord2f(1,0); gl.glVertex3f(-halfX, -halfY, -halfZ);
         if(hasTexture) gl.glTexCoord2f(1,1); gl.glVertex3f(-halfX,  halfY, -halfZ);
         if(hasTexture) gl.glTexCoord2f(0,1); gl.glVertex3f(-halfX,  halfY,  halfZ);
         if(hasTexture) gl.glTexCoord2f(0,0); gl.glVertex3f(-halfX, -halfY,  halfZ);
         if(!hasTexture) { gl.glVertex3f(-halfX, -halfY, -halfZ); gl.glVertex3f(-halfX,  halfY, -halfZ); gl.glVertex3f(-halfX,  halfY,  halfZ); gl.glVertex3f(-halfX, -halfY,  halfZ); }
 
-        // Right face (+X) - Normal (1, 0, 0)
+        // Right face (+X)
         gl.glNormal3f(1, 0, 0);
         if(hasTexture) gl.glTexCoord2f(0,0); gl.glVertex3f( halfX, -halfY, -halfZ);
         if(hasTexture) gl.glTexCoord2f(1,0); gl.glVertex3f( halfX, -halfY,  halfZ);
@@ -90,9 +93,8 @@ public class DrawingUtils {
                 new Vector3f( halfX,  halfY,  halfZ), new Vector3f(-halfX,  halfY,  halfZ)
         };
         int[][] edges = {
-                {0,1}, {1,2}, {2,3}, {3,0}, // Bottom ring
-                {4,5}, {5,6}, {6,7}, {7,4}, // Top ring
-                {0,4}, {1,5}, {2,6}, {3,7}  // Connecting edges
+                {0,1}, {1,2}, {2,3}, {3,0}, {4,5}, {5,6}, {6,7}, {7,4},
+                {0,4}, {1,5}, {2,6}, {3,7}
         };
 
         gl.glBegin(GL.GL_LINES);
@@ -105,25 +107,23 @@ public class DrawingUtils {
 
     /** Draws a grid on the XZ plane. */
     public static void drawGrid(GL2 gl, int lines, float spacing) {
-        // Save current state to avoid interference
         gl.glPushAttrib(GL2.GL_LIGHTING_BIT | GL2.GL_CURRENT_BIT | GL2.GL_LINE_BIT | GL2.GL_ENABLE_BIT);
-        gl.glDisable(GL2.GL_LIGHTING); // Grid shouldn't be lit
-        gl.glDisable(GL.GL_TEXTURE_2D); // Grid shouldn't be textured
-        setColor(gl, new Color(200, 200, 200)); // Set grid color using utility
+        gl.glDisable(GL2.GL_LIGHTING);
+        gl.glDisable(GL.GL_TEXTURE_2D);
+        setColor(gl, new Color(200, 200, 200)); // Use the utility setColor
         gl.glLineWidth(1.0f);
 
         gl.glBegin(GL2.GL_LINES);
         float extent = lines * spacing / 2.0f;
-        float gridY = 0.01f; // Slightly above Y=0 to avoid z-fighting with floor
         for (int i = -lines / 2; i <= lines / 2; i++) {
-            // Lines parallel to Z axis (varying X)
-            gl.glVertex3f(i * spacing, gridY, -extent);
-            gl.glVertex3f(i * spacing, gridY,  extent);
-            // Lines parallel to X axis (varying Z)
-            gl.glVertex3f(-extent, gridY, i * spacing);
-            gl.glVertex3f( extent, gridY, i * spacing);
+            // Lines parallel to Z axis
+            gl.glVertex3f(i * spacing, 0.01f, -extent); // Y slightly above 0
+            gl.glVertex3f(i * spacing, 0.01f,  extent);
+            // Lines parallel to X axis
+            gl.glVertex3f(-extent, 0.01f, i * spacing);
+            gl.glVertex3f( extent, 0.01f, i * spacing);
         }
         gl.glEnd();
-        gl.glPopAttrib();
+        gl.glPopAttrib(); // Restore attributes
     }
 }
