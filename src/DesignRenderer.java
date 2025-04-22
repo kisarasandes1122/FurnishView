@@ -536,15 +536,15 @@ public class DesignRenderer implements GLEventListener {
             if (useTexture) {
                 // Cylindrical mapping: U = angle/2pi, V = height/h
                 float u = (float) i / (float) segments;
-                gl.glTexCoord2f(u, 0); // V=0 at bottom
+                gl.glTexCoord2f(u, 1.0f); // V=1 at top (New order: top vertex first)
             }
-            gl.glVertex3f(x, 0, z); // Bottom vertex
+            gl.glVertex3f(x, h, z); // Top vertex (Draw top vertex first)
 
             if (useTexture) {
                 float u = (float) i / (float) segments;
-                gl.glTexCoord2f(u, 1.0f); // V=1 at top (adjust scale if needed, e.g., * wallTexScale)
+                gl.glTexCoord2f(u, 0); // V=0 at bottom
             }
-            gl.glVertex3f(x, h, z); // Top vertex
+            gl.glVertex3f(x, 0, z); // Bottom vertex (Then bottom vertex)
         }
         gl.glEnd();
         cleanupWallMaterial(gl, room, useTexture);
@@ -824,7 +824,10 @@ public class DesignRenderer implements GLEventListener {
         float margin = 0.03f;
         // Center indicator vertically based on furniture's object space origin (which is base)
         gl.glTranslatef(0, furniture.getHeight() / 2f, 0);
-        DrawingUtils.drawWireBox(gl, furniture.getWidth() + margin, furniture.getHeight() + margin, furniture.getDepth() + margin);
+        // The DrawingUtils.drawBox method requires a boolean 'hasTexture' argument.
+        // Since this is a wireframe selection box, it does not use textures.
+        // Pass 'false' for the hasTexture argument.
+        DrawingUtils.drawBox(gl, furniture.getWidth() + margin, furniture.getHeight() + margin, furniture.getDepth() + margin, false);
         gl.glPopMatrix();
 
         gl.glPopAttrib(); // Restore states
@@ -832,10 +835,12 @@ public class DesignRenderer implements GLEventListener {
 
     // Helper to check if texture was loaded (avoids redundant checks)
     // Needs TextureManager instance
-    private TextureManager textureCache; // Rename from previous use if any
+    // This field was potentially confusing; the textureManager field IS the cache manager
+    // private TextureManager textureCache;
 
     // Constructor modification needed if not already done:
-    // this.textureCache = this.textureManager; // Assign texture manager
+    // this.textureCache = this.textureManager; // Assign texture manager - This is not needed if we just use this.textureManager
+
 
     // Or, make TextureManager provide this check:
     // if (textureManager.isTextureLoaded(path)) ...
