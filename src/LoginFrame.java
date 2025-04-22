@@ -49,7 +49,12 @@ public class LoginFrame extends JFrame {
         formPanel.setBackground(backgroundColor);
         formPanel.setBorder(BorderFactory.createEmptyBorder(30, 0, 20, 0));
 
-        // Username field
+        // Username field with left-aligned label
+        JPanel usernamePanel = new JPanel();
+        usernamePanel.setLayout(new BoxLayout(usernamePanel, BoxLayout.Y_AXIS));
+        usernamePanel.setBackground(backgroundColor);
+        usernamePanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         JLabel usernameLabel = new JLabel("Username");
         usernameLabel.setFont(mainFont);
         usernameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -58,12 +63,22 @@ public class LoginFrame extends JFrame {
         usernameField.setFont(mainFont);
         usernameField.setPreferredSize(new Dimension(300, 40));
         usernameField.setMaximumSize(new Dimension(Short.MAX_VALUE, 40));
+        usernameField.setAlignmentX(Component.LEFT_ALIGNMENT);
         usernameField.setBorder(BorderFactory.createCompoundBorder(
                 new LineBorder(new Color(200, 200, 200), 1, true),
                 BorderFactory.createEmptyBorder(5, 10, 5, 10)
         ));
 
-        // Password field
+        usernamePanel.add(usernameLabel);
+        usernamePanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        usernamePanel.add(usernameField);
+
+        // Password field with left-aligned label
+        JPanel passwordPanel = new JPanel();
+        passwordPanel.setLayout(new BoxLayout(passwordPanel, BoxLayout.Y_AXIS));
+        passwordPanel.setBackground(backgroundColor);
+        passwordPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         JLabel passwordLabel = new JLabel("Password");
         passwordLabel.setFont(mainFont);
         passwordLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -72,27 +87,33 @@ public class LoginFrame extends JFrame {
         passwordField.setFont(mainFont);
         passwordField.setPreferredSize(new Dimension(300, 40));
         passwordField.setMaximumSize(new Dimension(Short.MAX_VALUE, 40));
+        passwordField.setAlignmentX(Component.LEFT_ALIGNMENT);
         passwordField.setBorder(BorderFactory.createCompoundBorder(
                 new LineBorder(new Color(200, 200, 200), 1, true),
                 BorderFactory.createEmptyBorder(5, 10, 5, 10)
         ));
 
-        // Remember me checkbox
-        JCheckBox rememberMe = new JCheckBox("Remember me");
-        rememberMe.setFont(mainFont);
-        rememberMe.setBackground(backgroundColor);
-        rememberMe.setFocusPainted(false);
+        passwordPanel.add(passwordLabel);
+        passwordPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        passwordPanel.add(passwordField);
 
         // Login button
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.Y_AXIS));
+        buttonPanel.setBackground(backgroundColor);
+        buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         JButton loginButton = new JButton("Login");
         loginButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
         loginButton.setBackground(primaryColor);
-        loginButton.setForeground(Color.BLACK);
+        loginButton.setForeground(Color.BLACK); // Black text as requested
         loginButton.setBorder(new EmptyBorder(10, 0, 10, 0));
         loginButton.setFocusPainted(false);
         loginButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
         loginButton.setAlignmentX(Component.LEFT_ALIGNMENT);
         loginButton.setMaximumSize(new Dimension(Short.MAX_VALUE, 45));
+
+        buttonPanel.add(loginButton);
 
         // Add hover effect to button
         loginButton.addMouseListener(new MouseAdapter() {
@@ -110,31 +131,15 @@ public class LoginFrame extends JFrame {
         loginButton.addActionListener(e -> handleLogin());
 
         // Add components to form with spacing
-        formPanel.add(usernameLabel);
-        formPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        formPanel.add(usernameField);
+        formPanel.add(usernamePanel);
         formPanel.add(Box.createRigidArea(new Dimension(0, 15)));
-        formPanel.add(passwordLabel);
-        formPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        formPanel.add(passwordField);
-        formPanel.add(Box.createRigidArea(new Dimension(0, 15)));
-        formPanel.add(rememberMe);
+        formPanel.add(passwordPanel);
         formPanel.add(Box.createRigidArea(new Dimension(0, 20)));
-        formPanel.add(loginButton);
-
-        // Create footer
-        JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        footerPanel.setBackground(backgroundColor);
-        JLabel forgotPasswordLabel = new JLabel("Forgot password?");
-        forgotPasswordLabel.setFont(mainFont);
-        forgotPasswordLabel.setForeground(primaryColor);
-        forgotPasswordLabel.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        footerPanel.add(forgotPasswordLabel);
+        formPanel.add(buttonPanel);
 
         // Add all panels to the content pane
         contentPane.add(logoPanel, BorderLayout.NORTH);
         contentPane.add(formPanel, BorderLayout.CENTER);
-        contentPane.add(footerPanel, BorderLayout.SOUTH);
     }
 
     private void handleLogin() {

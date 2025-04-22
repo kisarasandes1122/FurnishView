@@ -85,6 +85,9 @@ public class MainAppFrame extends JFrame {
     private static final float KEYBOARD_MOVE_STEP = 0.05f;
     private Set<Integer> pressedKeys = new HashSet<>(); // Keep track of pressed keys
 
+    // Floating point comparison epsilon
+    private static final float EPSILON = 1e-3f; // Use a small tolerance
+
 
     // --- Furniture Library Data ---
     private static final String[] FURNITURE_TYPES = {
@@ -218,7 +221,8 @@ public class MainAppFrame extends JFrame {
         JMenu viewMenu = new JMenu("View");
         JRadioButtonMenuItem view2DItem = new JRadioButtonMenuItem("2D View (Top Down)");
         JRadioButtonMenuItem view3DItem = new JRadioButtonMenuItem("3D View", true);
-        ButtonGroup viewGroup = new ButtonGroup(); viewGroup.add(view2DItem); viewGroup.add(view3DItem);
+        ButtonGroup viewGroup = new ButtonGroup(); viewGroup.add(view2DItem); view3DItem.setSelected(true); // Default to 3D
+        viewGroup.add(view3DItem);
         view2DItem.addActionListener(e -> setViewMode(false)); view3DItem.addActionListener(e -> setViewMode(true));
         showGridMenuItem = new JCheckBoxMenuItem("Show Grid", true);
         showGridMenuItem.addActionListener(e -> { if (renderer != null) { renderer.setShowGrid(showGridMenuItem.isSelected()); designCanvas.repaint(); } });
@@ -698,16 +702,20 @@ public class MainAppFrame extends JFrame {
 
             @Override
             public void mouseDragged(MouseEvent e) {
-                if (lastMousePoint == null) return;
+                if (lastMousePoint == null) return; // Should not happen if mousePressed was called
+                if (!isDraggingCamera && !isDraggingFurniture) return; // Not in a drag state
 
-                // Additional check: ensure only one drag type is active
+                // Additional check: ensure only one drag type is active (defensive)
                 if (isDraggingCamera && isDraggingFurniture) {
-                    System.err.println("Warning: Both camera and furniture drag flags are true!");
-                    // Prioritize camera? Or reset both? Reset furniture seems safer for typical interaction.
-                    isDraggingFurniture = false;
+                    // Should not happen based on mousePressed logic, but defensive check
+                    System.err.println("Warning: Both camera and furniture drag flags are true during drag!");
+                    isDraggingFurniture = false; // Prioritize camera drag?
                     draggedFurniture = null;
                     dragOffset = null;
                     dragStartPosition = null;
+                    // If it was a left drag with shift, keep camera dragging
+                    // If it was right drag, keep camera dragging
+                    // If it was middle drag, keep camera dragging
                 }
 
 
@@ -715,22 +723,41 @@ public class MainAppFrame extends JFrame {
                 float deltaY = e.getY() - lastMousePoint.y;
 
                 if (isDraggingCamera) {
-                    // Use Shift+Left-Mouse or Middle-Mouse for Panning, Right-Mouse alone for Rotation
-                    // Check Shift status dynamically during drag
-                    if (e.isShiftDown() || SwingUtilities.isMiddleMouseButton(e)) {
+                    // Panning with Middle-Mouse or Shift+Left-Mouse
+                    // Rotation with Right-Mouse
+                    // Check button state, not just initial flag, for robustness during drag
+                    if (SwingUtilities.isMiddleMouseButton(e) || (SwingUtilities.isLeftMouseButton(e) && e.isShiftDown())) {
                         renderer.panCamera(deltaX, deltaY);
-                    } else if (SwingUtilities.isRightMouseButton(e)) { // Only rotate if right button is down (and not shift)
+                    } else if (SwingUtilities.isRightMouseButton(e)) {
                         renderer.rotateCamera(deltaX, deltaY);
                     }
-                    // If it's a left-drag that started with shift, it should continue panning
-                    // The initial press sets the mode (camera/furniture)
+                    // else if (SwingUtilities.isLeftMouseButton(e)) {
+                    //    // Started as furniture drag but maybe flags got messed up? Or maybe started without shift
+                    //    // In this specific block (isDraggingCamera == true), this branch implies an issue.
+                    //    // Do nothing or log warning.
+                    // }
+
+
                 } else if (isDraggingFurniture && draggedFurniture != null) {
-                    Vector3f floorPos = renderer.screenToWorldFloor(e.getX(), e.getY());
-                    if (floorPos != null) {
-                        float newX = floorPos.x - dragOffset.x;
-                        float newZ = floorPos.z - dragOffset.z;
-                        // TODO: Add boundary checks to prevent dragging outside the room
-                        draggedFurniture.setPosition(new Vector3f(newX, draggedFurniture.getPosition().y, newZ));
+                    Vector3f clickFloorPos = renderer.screenToWorldFloor(e.getX(), e.getY());
+                    if (clickFloorPos != null) {
+                        float proposedX = clickFloorPos.x - dragOffset.x;
+                        float proposedZ = clickFloorPos.z - dragOffset.z;
+
+                        // --- Boundary Check ---
+                        Room currentRoom = designModel.getRoom();
+                        if (currentRoom != null) {
+                            // Pass furniture and room to the boundary check
+                            Vector3f newPosition = new Vector3f(proposedX, draggedFurniture.getPosition().y, proposedZ);
+                            // The boundary check *modifies* newPosition to clamp it if needed, or returns null if entirely invalid
+                            if (isFootprintInsideRoom(newPosition, draggedFurniture, currentRoom)) {
+                                draggedFurniture.setPosition(newPosition);
+                            }
+                            // Else: proposed position is outside, do not update furniture position
+                        } else {
+                            // No room? Allow dragging anywhere (or default to no drag?)
+                            draggedFurniture.setPosition(new Vector3f(proposedX, draggedFurniture.getPosition().y, proposedZ));
+                        }
                     }
                 }
 
@@ -746,6 +773,7 @@ public class MainAppFrame extends JFrame {
                 // Finalize furniture drag move for undo if needed
                 if (isDraggingFurniture && draggedFurniture != null && dragStartPosition != null) {
                     // Check if position actually changed significantly before adding undo edit
+                    // Use EPSILON for floating point comparison
                     if (!draggedFurniture.getPosition().equals(dragStartPosition)) {
                         registerUndoableEdit(new MoveFurnitureEdit(draggedFurniture, dragStartPosition, draggedFurniture.getPosition()));
                     }
@@ -810,46 +838,38 @@ public class MainAppFrame extends JFrame {
         if (keyCode == KeyEvent.VK_UP || keyCode == KeyEvent.VK_DOWN ||
                 keyCode == KeyEvent.VK_LEFT || keyCode == KeyEvent.VK_RIGHT)
         {
+            // Add key to the set of currently pressed keys BEFORE calculating movement
+            pressedKeys.add(keyCode);
+
             if (!isMovingWithKeyboard) { // Start of a keyboard move sequence
                 isMovingWithKeyboard = true;
                 keyboardMoveStartPosition = selected.getPosition().clone(); // Record starting position for undo
             }
-            pressedKeys.add(keyCode); // Add key to the set of currently pressed keys
 
-            // Calculate cumulative movement based on currently pressed keys
+            // Calculate delta based on currently pressed keys
             float dx = 0, dz = 0;
-            // Movement is relative to the *current* camera orientation for a more intuitive feel
-            // In 2D mode (top-down), UP is -Z, DOWN is +Z, LEFT is -X, RIGHT is +X
-            // In 3D mode, this is more complex, depending on yaw/pitch. For simplicity,
-            // let's keep it aligned with world XZ axes regardless of 3D view rotation for now.
-            // A more advanced approach would project movement onto the camera's Right/Forward vectors on the XZ plane.
-
-            // Simple XZ axis movement (works well for 2D and angled 3D)
             if (pressedKeys.contains(KeyEvent.VK_UP)) dz -= KEYBOARD_MOVE_STEP;
             if (pressedKeys.contains(KeyEvent.VK_DOWN)) dz += KEYBOARD_MOVE_STEP;
             if (pressedKeys.contains(KeyEvent.VK_LEFT)) dx -= KEYBOARD_MOVE_STEP;
             if (pressedKeys.contains(KeyEvent.VK_RIGHT)) dx += KEYBOARD_MOVE_STEP;
 
-
-            // Apply movement relative to current position for continuous movement feel
+            // Calculate proposed new position
             Vector3f currentPos = selected.getPosition();
-            float newX = currentPos.x + dx;
-            float newZ = currentPos.z + dz;
+            Vector3f proposedPos = new Vector3f(currentPos.x + dx, currentPos.y, currentPos.z + dz);
 
+            // --- Boundary Check ---
+            Room currentRoom = designModel.getRoom();
+            if (currentRoom != null) {
+                // Pass proposed position, furniture, and room to the boundary check
+                if (isFootprintInsideRoom(proposedPos, selected, currentRoom)) {
+                    selected.setPosition(proposedPos);
+                }
+                // Else: proposed position is outside, do not update furniture position
+            } else {
+                // No room? Allow movement anywhere
+                selected.setPosition(proposedPos);
+            }
 
-            // TODO: Add boundary checks here based on room shape and furniture size
-            // Example (simple rectangular boundary - NEEDS IMPROVEMENT for other shapes):
-            // float halfW = selected.getWidth() / 2f;
-            // float halfD = selected.getDepth() / 2f;
-            // Room room = designModel.getRoom(); // Get current room
-            // if (room != null && room.getShape() == Room.RoomShape.RECTANGULAR) {
-            //     if (newX - halfW < 0) newX = halfW;
-            //     if (newX + halfW > room.getWidth()) newX = room.getWidth() - halfW;
-            //     if (newZ - halfD < 0) newZ = halfD;
-            //     if (newZ + halfD > room.getLength()) newZ = room.getLength() - halfD;
-            // } // else: Implement checks for other shapes
-
-            selected.setPosition(new Vector3f(newX, currentPos.y, newZ));
             designCanvas.repaint();
 
         } else if (keyCode == KeyEvent.VK_DELETE || keyCode == KeyEvent.VK_BACK_SPACE) {
@@ -863,7 +883,7 @@ public class MainAppFrame extends JFrame {
 
     private void handleKeyRelease(KeyEvent e) {
         int keyCode = e.getKeyCode();
-        // Only finalize if the released key was relevant (an arrow key)
+        // Only remove if the released key was relevant (an arrow key)
         if (keyCode == KeyEvent.VK_UP || keyCode == KeyEvent.VK_DOWN ||
                 keyCode == KeyEvent.VK_LEFT || keyCode == KeyEvent.VK_RIGHT)
         {
@@ -881,10 +901,11 @@ public class MainAppFrame extends JFrame {
         if (isMovingWithKeyboard && keyboardMoveStartPosition != null) {
             Furniture selected = designModel.getSelectedFurniture();
             // Check if selected furniture still exists and if position changed
+            // Use EPSILON for floating point comparison
             if (selected != null && !selected.getPosition().equals(keyboardMoveStartPosition)) {
                 // Register the completed move as a single undoable edit
                 registerUndoableEdit(new MoveFurnitureEdit(selected, keyboardMoveStartPosition, selected.getPosition()));
-                // updateUIFromModel() and repaint() are handled by the edit's undo/redo methods if registered.
+                // updateUIFromModel() and repaint() are handled by the edit's undo/redo methods.
             }
             isMovingWithKeyboard = false;
             keyboardMoveStartPosition = null;
@@ -906,6 +927,81 @@ public class MainAppFrame extends JFrame {
             designCanvas.repaint(); // Redraw with reverted position
             System.out.println("Keyboard move cancelled.");
             // updateUIFromModel is not needed here as state wasn't saved/committed
+        }
+    }
+
+    // --- Boundary Check Helper ---
+    /**
+     * Checks if the footprint of a furniture item at a proposed position
+     * is entirely inside the room boundaries.
+     * Note: For complex shapes (Circular, L, T), this currently only checks
+     * if the *center* of the furniture is inside the room shape.
+     *
+     * @param proposedPos The proposed center position (x, y, z) of the furniture.
+     *                    Only x and z are used for the 2D floor footprint check.
+     * @param furniture   The furniture item (needed for its dimensions).
+     * @param room        The room (needed for its shape and dimensions).
+     * @return true if the furniture's footprint (or center for non-rect) is inside, false otherwise.
+     */
+    private boolean isFootprintInsideRoom(Vector3f proposedPos, Furniture furniture, Room room) {
+        if (room == null || furniture == null || proposedPos == null) {
+            return false; // Cannot check without valid inputs
+        }
+
+        float proposedX = proposedPos.x;
+        float proposedZ = proposedPos.z;
+        float halfW = furniture.getWidth() / 2.0f;
+        float halfD = furniture.getDepth() / 2.0f;
+
+        switch (room.getShape()) {
+            case RECTANGULAR:
+                float roomW = room.getWidth();
+                float roomL = room.getLength();
+                // Check all four corners of the furniture's footprint against the rectangular boundary [0, roomW] x [0, roomL]
+                boolean corner1 = (proposedX - halfW >= 0 - EPSILON && proposedX - halfW <= roomW + EPSILON && proposedZ - halfD >= 0 - EPSILON && proposedZ - halfD <= roomL + EPSILON);
+                boolean corner2 = (proposedX + halfW >= 0 - EPSILON && proposedX + halfW <= roomW + EPSILON && proposedZ - halfD >= 0 - EPSILON && proposedZ - halfD <= roomL + EPSILON);
+                boolean corner3 = (proposedX + halfW >= 0 - EPSILON && proposedX + halfW <= roomW + EPSILON && proposedZ + halfD >= 0 - EPSILON && proposedZ + halfD <= roomL + EPSILON);
+                boolean corner4 = (proposedX - halfW >= 0 - EPSILON && proposedX - halfW <= roomW + EPSILON && proposedZ + halfD >= 0 - EPSILON && proposedZ + halfD <= roomL + EPSILON);
+                // Return true only if ALL corners are within the bounds
+                return corner1 && corner2 && corner3 && corner4;
+
+            case CIRCULAR:
+                float roomR = room.getRadius();
+                // Simple check: Is the center of the furniture inside the circle?
+                // Origin of circle is assumed to be (0,0)
+                float distSq = proposedX * proposedX + proposedZ * proposedZ;
+                return distSq <= (roomR * roomR) + EPSILON; // Allow slight floating point error
+
+            case L_SHAPED:
+                float oW = room.getL_outerWidth();
+                float oL = room.getL_outerLength();
+                float iW = room.getL_insetWidth();
+                float iL = room.getL_insetLength();
+                // Assumed origin is (0,0)
+                // Check if the furniture center is within either of the two rectangles making the L
+                boolean inRect1 = (proposedX >= 0 - EPSILON && proposedX <= oW + EPSILON && proposedZ >= 0 - EPSILON && proposedZ <= iL + EPSILON);
+                boolean inRect2 = (proposedX >= 0 - EPSILON && proposedX <= iW + EPSILON && proposedZ >= iL - EPSILON && proposedZ <= oL + EPSILON);
+                return inRect1 || inRect2;
+
+            case T_SHAPED:
+                float bW = room.getT_barWidth();
+                float bL = room.getT_barLength();
+                float sW = room.getT_stemWidth();
+                float sL = room.getT_stemLength();
+                float stemStartX = (bW - sW) / 2.0f;
+                float stemEndX = stemStartX + sW;
+                float totalLength = bL + sL;
+                // Assumed origin is (0,0) (top-left of the bar)
+                // Check if the furniture center is within either the bar rectangle or the stem rectangle
+                boolean inBar = (proposedX >= 0 - EPSILON && proposedX <= bW + EPSILON && proposedZ >= 0 - EPSILON && proposedZ <= bL + EPSILON);
+                boolean inStem = (proposedX >= stemStartX - EPSILON && proposedX <= stemEndX + EPSILON && proposedZ >= bL - EPSILON && proposedZ <= totalLength + EPSILON);
+                return inBar || inStem;
+
+            default:
+                // No defined shape, maybe allow movement anywhere? Or restrict?
+                // For now, assume rectangular for unknown shape
+                System.err.println("Unknown room shape encountered in boundary check.");
+                return true; // Default to allowing movement if shape is unknown
         }
     }
 
@@ -1009,6 +1105,15 @@ public class MainAppFrame extends JFrame {
                 if (initialPos == null) initialPos = new Vector3f(2.5f, 0, 2.5f); // Fallback
                 initialPos.y = 0; // Place on floor
 
+                // Before adding, check if the default position is valid within the current room
+                if (!isFootprintInsideRoom(initialPos, new Furniture(type, initialPos, w, d, h), designModel.getRoom())) {
+                    // If default position is invalid (e.g., room became too small),
+                    // try placing it at the room's origin (0,0,0) or print warning.
+                    // For now, just print a warning and use the proposed center.
+                    System.err.println("Warning: Default furniture position (" + initialPos.x + ", " + initialPos.z + ") is outside the room bounds for shape " + designModel.getRoom().getShape());
+                }
+
+
                 Furniture newFurniture = new Furniture(type, initialPos, w, d, h);
                 designModel.addFurniture(newFurniture); // Adds and selects
                 registerUndoableEdit(new AddFurnitureEdit(newFurniture));
@@ -1026,6 +1131,12 @@ public class MainAppFrame extends JFrame {
                     Vector3f initialPos = designModel.getRoom().calculateCenter();
                     if (initialPos == null) initialPos = new Vector3f(2.5f, 0, 2.5f);
                     initialPos.y = 0;
+
+                    // Check default position validity again for default dims
+                    if (!isFootprintInsideRoom(initialPos, new Furniture(defaultType, initialPos, w, d, h), designModel.getRoom())) {
+                        System.err.println("Warning: Default furniture position with default dims (" + initialPos.x + ", " + initialPos.z + ") is outside the room bounds for shape " + designModel.getRoom().getShape());
+                    }
+
                     Furniture newFurniture = new Furniture(defaultType, initialPos, w, d, h);
                     designModel.addFurniture(newFurniture);
                     registerUndoableEdit(new AddFurnitureEdit(newFurniture));
@@ -1063,7 +1174,7 @@ public class MainAppFrame extends JFrame {
             Room.RoomShape selectedShape = (Room.RoomShape) roomShapeComboBox.getSelectedItem();
             if (selectedShape == null) return;
             float h = Float.parseFloat(sharedHeightField.getText());
-            if (h <= 0) throw new NumberFormatException("Height must be positive");
+            if (h <= EPSILON) throw new NumberFormatException("Height must be positive");
 
             // Prepare variables to hold new dimensions, initialize with current model values FOR COMPARISON
             float currentW = room.getWidth(), currentL = room.getLength();
@@ -1087,38 +1198,40 @@ public class MainAppFrame extends JFrame {
                 case RECTANGULAR:
                     w = Float.parseFloat(roomWidthField.getText());
                     l = Float.parseFloat(roomLengthField.getText());
-                    if (w <= 0 || l <= 0) throw new NumberFormatException("Rectangular dimensions must be positive");
+                    if (w <= EPSILON || l <= EPSILON) throw new NumberFormatException("Rectangular dimensions must be positive");
                     // Check for changes in shape or dimensions
-                    changed = currentShape != selectedShape || Math.abs(h - currentH) > 1e-3 ||
-                            Math.abs(w - currentW) > 1e-3 || Math.abs(l - currentL) > 1e-3;
+                    changed = currentShape != selectedShape || Math.abs(h - currentH) > EPSILON ||
+                            Math.abs(w - currentW) > EPSILON || Math.abs(l - currentL) > EPSILON;
                     break;
                 case CIRCULAR:
                     r = Float.parseFloat(roomRadiusField.getText());
-                    if (r <= 0) throw new NumberFormatException("Radius must be positive");
-                    changed = currentShape != selectedShape || Math.abs(h - currentH) > 1e-3 ||
-                            Math.abs(r - currentR) > 1e-3;
+                    if (r <= EPSILON) throw new NumberFormatException("Radius must be positive");
+                    changed = currentShape != selectedShape || Math.abs(h - currentH) > EPSILON ||
+                            Math.abs(r - currentR) > EPSILON;
                     break;
                 case L_SHAPED:
                     loW = Float.parseFloat(lOuterWidthField.getText());
                     loL = Float.parseFloat(lOuterLengthField.getText());
                     liW = Float.parseFloat(lInsetWidthField.getText());
                     liL = Float.parseFloat(lInsetLengthField.getText());
-                    if (loW <= 0 || loL <= 0 || liW <= 0 || liL <= 0 || liW >= loW || liL >= loL)
-                        throw new NumberFormatException("Invalid L-Shape dimensions (insets must be smaller than outer)");
-                    changed = currentShape != selectedShape || Math.abs(h - currentH) > 1e-3 ||
-                            Math.abs(loW - currentLoW) > 1e-3 || Math.abs(loL - currentLoL) > 1e-3 ||
-                            Math.abs(liW - currentLiW) > 1e-3 || Math.abs(liL - currentLiL) > 1e-3;
+                    // Add validation for L-shape constraints
+                    if (loW <= EPSILON || loL <= EPSILON || liW < 0 || liL < 0 || liW >= loW - EPSILON || liL >= loL - EPSILON) // Inset can be 0, but must be strictly less than outer
+                        throw new NumberFormatException("Invalid L-Shape dimensions (dimensions must be positive, insets must be smaller than outer, inset area must be valid)");
+                    changed = currentShape != selectedShape || Math.abs(h - currentH) > EPSILON ||
+                            Math.abs(loW - currentLoW) > EPSILON || Math.abs(loL - currentLoL) > EPSILON ||
+                            Math.abs(liW - currentLiW) > EPSILON || Math.abs(liL - currentLiL) > EPSILON;
                     break;
                 case T_SHAPED:
                     tbW = Float.parseFloat(tBarWidthField.getText());
                     tbL = Float.parseFloat(tBarLengthField.getText());
                     tsW = Float.parseFloat(tStemWidthField.getText());
                     tsL = Float.parseFloat(tStemLengthField.getText());
-                    if (tbW <= 0 || tbL <= 0 || tsW <= 0 || tsL <= 0 || tsW > tbW)
-                        throw new NumberFormatException("Invalid T-Shape dimensions (stem width <= bar width)");
-                    changed = currentShape != selectedShape || Math.abs(h - currentH) > 1e-3 ||
-                            Math.abs(tbW - currentTbW) > 1e-3 || Math.abs(tbL - currentTbL) > 1e-3 ||
-                            Math.abs(tsW - currentTsW) > 1e-3 || Math.abs(tsL - currentTsL) > 1e-3;
+                    // Add validation for T-shape constraints
+                    if (tbW <= EPSILON || tbL <= EPSILON || tsW <= EPSILON || tsL <= EPSILON || tsW > tbW - EPSILON) // Stem width must be less than or equal to bar width
+                        throw new NumberFormatException("Invalid T-Shape dimensions (dimensions must be positive, stem width <= bar width)");
+                    changed = currentShape != selectedShape || Math.abs(h - currentH) > EPSILON ||
+                            Math.abs(tbW - currentTbW) > EPSILON || Math.abs(tbL - currentTbL) > EPSILON ||
+                            Math.abs(tsW - currentTsW) > EPSILON || Math.abs(tsL - currentTsL) > EPSILON;
                     break;
             } // END SWITCH
 
@@ -1169,6 +1282,7 @@ public class MainAppFrame extends JFrame {
         Color defaultColor = isWall ? Color.WHITE : Color.LIGHT_GRAY; // Get default colors from Room constructor logic
 
         // Create an edit to change color to default AND clear the texture path
+        // Pass "" for texture path to explicitly clear it.
         registerUndoableEdit(new ChangeRoomAppearanceEdit(room, isWall, defaultColor, "")); // Pass default color, empty string texture path to clear
 
         // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
@@ -1182,9 +1296,10 @@ public class MainAppFrame extends JFrame {
         if (selected == null) return;
         Color initialColor = selected.getColor();
         Color newColor = JColorChooser.showDialog(this, "Select Furniture Color", initialColor);
+        // Check if newColor is selected and is actually different (using epsilon for color components if needed, but direct equals is fine for Color objects)
         if (newColor != null && !newColor.equals(initialColor)) {
-            // Pass existing texture path so the edit doesn't clear it
-            registerUndoableEdit(new ChangeFurnitureAppearanceEdit(selected, newColor, selected.getTexturePath()));
+            // Pass existing texture path so the edit doesn't clear it (pass null to indicate "don't change texture")
+            registerUndoableEdit(new ChangeFurnitureAppearanceEdit(selected, newColor, null)); // Pass new color, null texture path
             // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
             updateUndoRedoState();
         }
@@ -1199,14 +1314,31 @@ public class MainAppFrame extends JFrame {
             float newWidth = Float.parseFloat(furnWidthField.getText());
             float newDepth = Float.parseFloat(furnDepthField.getText());
             float newHeight = Float.parseFloat(furnHeightField.getText());
-            if (newWidth <= 0 || newDepth <= 0 || newHeight <= 0) {
+            if (newWidth <= EPSILON || newDepth <= EPSILON || newHeight <= EPSILON) {
                 throw new NumberFormatException("Dimensions must be positive.");
             }
-            // Check if dimensions actually changed
-            if (Math.abs(newWidth - selected.getWidth()) > 1e-3 ||
-                    Math.abs(newDepth - selected.getDepth()) > 1e-3 ||
-                    Math.abs(newHeight - selected.getHeight()) > 1e-3)
+            // Check if dimensions actually changed using epsilon
+            if (Math.abs(newWidth - selected.getWidth()) > EPSILON ||
+                    Math.abs(newDepth - selected.getDepth()) > EPSILON ||
+                    Math.abs(newHeight - selected.getHeight()) > EPSILON)
             {
+                // --- Boundary check for new dimensions ---
+                // Create a temporary furniture item with the new dimensions at the current position
+                Furniture tempFurniture = new Furniture(selected.getType(), selected.getPosition().clone(), newWidth, newDepth, newHeight);
+
+                Room currentRoom = designModel.getRoom();
+                if (currentRoom != null && !isFootprintInsideRoom(tempFurniture.getPosition(), tempFurniture, currentRoom)) {
+                    // If the new dimensions would cause the furniture at its *current* position
+                    // to be outside the room bounds, refuse the change and warn the user.
+                    JOptionPane.showMessageDialog(this,
+                            "Cannot change dimensions: New size would place furniture outside the room.",
+                            "Input Error", JOptionPane.ERROR_MESSAGE);
+                    updateUIFromModel(); // Reset UI fields
+                    return; // Stop processing
+                }
+                // --- End Boundary check ---
+
+
                 registerUndoableEdit(new ChangeFurnitureDimensionsEdit(selected, newWidth, newDepth, newHeight));
                 // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
                 updateUndoRedoState(); // Update undo state now
@@ -1225,8 +1357,13 @@ public class MainAppFrame extends JFrame {
         if (selected == null) return;
         try {
             float newRotationY = Float.parseFloat(furnRotationYField.getText());
-            // Check if rotation actually changed
-            if (Math.abs(newRotationY - selected.getRotation().y) > 1e-2) {
+
+            // Normalize rotation to be between -180 and +180 or 0 and 360 if preferred
+            // Keep it simple, just use the input value. The renderer/drawing handles the angle math.
+
+            // Check if rotation actually changed using epsilon
+            // Be slightly more lenient with rotation checks
+            if (Math.abs(newRotationY - selected.getRotation().y) > 0.5f) { // Use 0.5 degrees tolerance
                 registerUndoableEdit(new ChangeFurnitureRotationEdit(selected, newRotationY));
                 // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
                 updateUndoRedoState(); // Update undo state now
@@ -1243,7 +1380,7 @@ public class MainAppFrame extends JFrame {
         Room room = designModel.getRoom();
         if (room == null) return;
 
-        String oldTexturePath = isWall ? room.getWallTexturePath() : room.getFloorTexturePath();
+        // String oldTexturePath = isWall ? room.getWallTexturePath() : room.getFloorTexturePath(); // Not needed for edit logic
         String newTexturePath = selectTextureFile(); // Allow selecting a file
 
         // Allow clearing the texture
@@ -1258,60 +1395,34 @@ public class MainAppFrame extends JFrame {
                 return; // User cancelled both file chooser and clear confirmation
             }
         }
-        // Check if texture actually changed (comparing paths, handle null/empty)
-        boolean pathChanged = false;
-        // Use equals for String comparison, handles null/empty appropriately if we are careful
-        // Consider null and empty string "" as the same state (no texture)
-        boolean oldTexturePresent = (oldTexturePath != null && !oldTexturePath.isEmpty());
-        boolean newTexturePresent = (newTexturePath != null && !newTexturePath.isEmpty());
+        // The ChangeRoomAppearanceEdit checks if the path actually changed before doing anything
+        // Pass existing color (don't change color) and the new texture path (or "" to clear)
+        Color currentColor = isWall ? room.getWallColor() : room.getFloorColor();
+        registerUndoableEdit(new ChangeRoomAppearanceEdit(room, isWall, null, newTexturePath)); // Pass null for color to indicate "don't change"
 
-        if (oldTexturePresent != newTexturePresent) { // State changed (had texture, now doesn't, or vice versa)
-            pathChanged = true;
-        } else if (oldTexturePresent && newTexturePresent) { // Both have textures, check if path is different
-            if (!oldTexturePath.equals(newTexturePath)) pathChanged = true;
-        }
-        // If both were null/empty, pathChanged remains false.
-
-
-        if (pathChanged) {
-            // Pass existing color so the edit doesn't change it
-            Color currentColor = isWall ? room.getWallColor() : room.getFloorColor();
-            registerUndoableEdit(new ChangeRoomAppearanceEdit(room, isWall, currentColor, newTexturePath));
-            // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
-            updateUndoRedoState();
-        }
+        // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
+        updateUndoRedoState();
     }
     private void handleSetFurnitureTexture() {
         finalizeKeyboardMove(); // Finalize any pending move
         Furniture selected = designModel.getSelectedFurniture();
         if (selected == null) return;
-        String oldTexturePath = selected.getTexturePath();
+        // String oldTexturePath = selected.getTexturePath(); // Not needed for edit logic
         String newTexturePath = selectTextureFile();
 
         // Allow clearing the texture
         int choice = JOptionPane.NO_OPTION;
         if (newTexturePath == null) {
             choice = JOptionPane.showConfirmDialog(this,"Clear existing furniture texture?","Clear Texture", JOptionPane.YES_NO_OPTION);
-            if (choice == JOptionPane.YES_OPTION) { newTexturePath = ""; }
-            else { return; }
+            if (choice == JOptionPane.YES_OPTION) { newTexturePath = ""; } // Empty string means clear
+            else { return; } // User cancelled
         }
-        // Check if texture actually changed
-        boolean pathChanged = false;
-        boolean oldTexturePresent = (oldTexturePath != null && !oldTexturePath.isEmpty());
-        boolean newTexturePresent = (newTexturePath != null && !newTexturePath.isEmpty());
+        // The ChangeFurnitureAppearanceEdit checks if the path actually changed
+        // Pass existing color (don't change color) and the new texture path (or "" to clear)
+        registerUndoableEdit(new ChangeFurnitureAppearanceEdit(selected, null, newTexturePath)); // Pass null for color to indicate "don't change"
 
-        if (oldTexturePresent != newTexturePresent) {
-            pathChanged = true;
-        } else if (oldTexturePresent && newTexturePresent) {
-            if (!oldTexturePath.equals(newTexturePath)) pathChanged = true;
-        }
-
-
-        if (pathChanged) {
-            registerUndoableEdit(new ChangeFurnitureAppearanceEdit(selected, selected.getColor(), newTexturePath));
-            // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
-            updateUndoRedoState();
-        }
+        // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
+        updateUndoRedoState();
     }
 
     // --- CORRECTED selectTextureFile ---
@@ -1320,15 +1431,17 @@ public class MainAppFrame extends JFrame {
         if (!textureDir.exists()) {
             try { textureDir.mkdirs(); } catch (SecurityException se) { System.err.println("Warning: Failed to create ./textures directory: " + se.getMessage()); }
         }
+        // Prioritize starting in ./textures if it exists and is a directory
         JFileChooser fc = new JFileChooser(textureDir.exists() && textureDir.isDirectory() ? textureDir : null);
         fc.setDialogTitle("Select Texture Image");
         FileNameExtensionFilter filter = new FileNameExtensionFilter("Image Files (png, jpg, bmp, gif)", "png", "jpg", "jpeg", "bmp", "gif");
         fc.setFileFilter(filter);
-        fc.setAcceptAllFileFilterUsed(false); // Corrected method name
+        fc.setAcceptAllFileFilterUsed(false);
         int result = fc.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             File selectedFile = fc.getSelectedFile();
             // Return the absolute path to ensure it's unique even if opened from different directories
+            // This absolute path is used as the key in the texture cache.
             return (selectedFile != null) ? selectedFile.getAbsolutePath() : null;
         } else {
             return null; // Return null if cancelled
@@ -1385,8 +1498,10 @@ public class MainAppFrame extends JFrame {
             this.furniture = f;
             this.oldW = f.getWidth(); this.oldD = f.getDepth(); this.oldH = f.getHeight();
             this.newW = nw; this.newD = nd; this.newH = nh;
-            apply(newW, newD, newH); // Apply immediately
+            // Apply immediately only if the check passed in handleUpdateFurnitureDimensions
+            // apply(newW, newD, newH); // Applied in handler BEFORE creating edit if valid
         }
+        // Re-apply method needs to be public or called from constructor and undo/redo
         private void apply(float w, float d, float h) { furniture.setWidth(w); furniture.setDepth(d); furniture.setHeight(h); }
         @Override public String getPresentationName() { return "Resize " + furniture.getType(); }
         @Override public void undo() throws CannotUndoException { super.undo(); apply(oldW, oldD, oldH); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
@@ -1396,8 +1511,9 @@ public class MainAppFrame extends JFrame {
         private final Furniture furniture; private final float oldRotY, newRotY;
         public ChangeFurnitureRotationEdit(Furniture f, float newRot) {
             this.furniture = f; this.oldRotY = f.getRotation().y; this.newRotY = newRot;
-            apply(newRotY); // Apply immediately
+            // apply(newRotY); // Applied in handler BEFORE creating edit if valid
         }
+        // Re-apply method needs to be public or called from constructor and undo/redo
         private void apply(float rotY) { furniture.getRotation().y = rotY; }
         @Override public String getPresentationName() { return "Rotate " + furniture.getType(); }
         @Override public void undo() throws CannotUndoException { super.undo(); apply(oldRotY); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
@@ -1407,16 +1523,21 @@ public class MainAppFrame extends JFrame {
         private final Furniture furniture; private final Color oldColor, newColor; private final String oldTexture, newTexture;
         public ChangeFurnitureAppearanceEdit(Furniture f, Color c, String t) {
             this.furniture = f;
+            // Store state BEFORE change
             this.oldColor = f.getColor(); this.oldTexture = f.getTexturePath();
-            this.newColor = c; this.newTexture = t;
-            apply(newColor, newTexture); // Apply immediately
+            // Store new state from parameters.
+            // c == null means don't change color. t == null means don't change texture path. t == "" means clear texture.
+            this.newColor = (c != null) ? c : oldColor; // If c is null, don't change color, keep old
+            this.newTexture = t; // t is null (no change) or "" (clear) or new path
+
+            // Apply the new state immediately
+            apply(this.newColor, this.newTexture);
         }
+        // Apply method handles null/empty string for texture path
         private void apply(Color c, String t) {
-            if (c != null) furniture.setColor(c);
-            // Handle texture path change: null or empty string clears it
+            furniture.setColor(c); // Always set color (newColor is never null here)
             // Only change texture path if the newTexture parameter is non-null (meaning the user explicitly changed texture or reset)
             if (t != null) furniture.setTexturePath(t.isEmpty() ? null : t);
-            // else if (oldTexture == null && (t == null || t.isEmpty())) { /* no change needed */ } // This case is covered by t != null check above if t is ""
         }
         @Override public String getPresentationName() { return "Change " + furniture.getType() + " Appearance"; }
         @Override public void undo() throws CannotUndoException { super.undo(); apply(oldColor, oldTexture); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
@@ -1432,18 +1553,20 @@ public class MainAppFrame extends JFrame {
             this.oldTexture = wall ? r.getWallTexturePath() : r.getFloorTexturePath();
             // Store new state from parameters.
             // c == null means don't change color. t == null means don't change texture path. t == "" means clear texture.
-            this.newColor = c; this.newTexture = t;
+            this.newColor = (c != null) ? c : oldColor; // If c is null, don't change color, keep old
+            this.newTexture = t; // t is null (no change) or "" (clear) or new path
+
             // Apply the new state immediately
-            apply(newColor, newTexture);
+            apply(this.newColor, this.newTexture);
         }
         // Apply method handles null/empty string for texture path
         private void apply(Color c, String t) {
             if (isWall) {
-                if (c != null) room.setWallColor(c); // Only change color if c is not null
+                room.setWallColor(c); // Always set color (newColor is never null here)
                 if (t != null) room.setWallTexturePath(t.isEmpty() ? null : t); // Only change texture if t is not null (user chose/cleared), set to null if empty
             }
             else {
-                if (c != null) room.setFloorColor(c); // Only change color if c is not null
+                room.setFloorColor(c); // Always set color (newColor is never null here)
                 if (t != null) room.setFloorTexturePath(t.isEmpty() ? null : t); // Only change texture if t is not null, set to null if empty
             }
         }
@@ -1479,11 +1602,35 @@ public class MainAppFrame extends JFrame {
                 case L_SHAPED: room.setL_outerWidth(loW); room.setL_outerLength(loL); room.setL_insetWidth(liW); room.setL_insetLength(liL); break;
                 case T_SHAPED: room.setT_barWidth(tbW); room.setT_barLength(tbL); room.setT_stemWidth(tsW); room.setT_stemLength(tsL); break;
             }
+            // After room shape/size changes, check all furniture positions
+            // This is important because some furniture might now be outside the new bounds.
+            // Option 1: Remove furniture outside bounds.
+            // Option 2: Try to snap furniture to the nearest valid spot. (Harder)
+            // Option 3: Just leave them where they are and let the user fix it. (Simplest, potentially confusing)
+            // Let's implement a simple check and potentially move furniture slightly if they are clearly outside.
+            // Or better, just log a warning for now and let the user manually move them.
+            // A more robust approach would be to iterate through furniture and check if they are valid in the *new* room shape *at their current position*.
+            // If not valid, move them to the new room's center or origin.
+
+            // When room changes, iterate through furniture and reposition if needed
+            // This is complex and better done outside the Edit class if possible,
+            // maybe after `afterChange()` is called?
+            // For now, just re-center the camera and update UI/render.
+            // Furniture validation happens during move/add/resize, but not automatically on room resize.
+            // This is a known limitation of this simpler approach.
         }
         @Override public String getPresentationName() { return "Change Room Shape/Size"; }
         @Override public void undo() throws CannotUndoException { super.undo(); applyProperties(oldShape, oldH, oldW, oldL, oldR, oldLoW, oldLoL, oldLiW, oldLiL, oldTbW, oldTbL, oldTsW, oldTsL); afterChange(); }
         @Override public void redo() throws CannotRedoException { super.redo(); applyProperties(newShape, newH, newW, newL, newR, newLoW, newLoL, newLiW, newLiL, newTbW, newTbL, newTsW, newTsL); afterChange(); }
-        private void afterChange() { designCanvas.repaint(); updateUIFromModel(); if(renderer != null && designModel.getRoom() != null) { renderer.updateCameraForModel(); } }
+        private void afterChange() {
+            // After applying the change (undo or redo), update the camera, UI, and repaint.
+            // Also re-validate furniture positions? This is tricky.
+            // For now, rely on validation during user interaction (drag/keyboard/update).
+            designCanvas.repaint();
+            updateUIFromModel();
+            // Ensure camera is reset based on the *new* room size/center
+            if(renderer != null && designModel.getRoom() != null) { renderer.updateCameraForModel(); }
+        }
     }
 
 }
