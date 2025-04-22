@@ -28,8 +28,9 @@ public class MainAppFrame extends JFrame {
     private GLJPanel designCanvas;
     private JComboBox<String> viewModeComboBox;
     private JButton deleteFurnitureButton;
-    private JButton wallColorButton, floorColorButton, furnitureColorButton, furnitureTextureButton;
-    // private JButton updateFurnDimsButton, updateFurnRotationButton;
+    private JButton wallColorButton, floorColorButton; // Keep these
+    // private JButton furnitureColorButton, furnitureTextureButton; // Keep these, defined later in createControlPanel
+    // private JButton updateFurnDimsButton, updateFurnRotationButton; // Defined locally
     private JTextField roomWidthField, roomLengthField;
     private JTextField furnWidthField, furnDepthField, furnHeightField, furnRotationYField;
     private JList<String> furnitureLibraryList;
@@ -45,8 +46,16 @@ public class MainAppFrame extends JFrame {
     private JTextField tBarWidthField, tBarLengthField, tStemWidthField, tStemLengthField;
     private JTextField sharedHeightField;
     private ActionListener roomShapeActionListener; // <<< Store listener instance variable
-    private JPanel furnitureAppearancePanel; // Instance variable
-    private JPanel furnitureDimsPanel; // Instance variable
+
+    // Instance variables for furniture UI components
+    private JPanel furnitureAppearancePanel;
+    private JPanel furnitureDimsPanel;
+    private JButton furnitureColorButton, furnitureTextureButton;
+
+    // --- NEW UI Fields for Reset Buttons ---
+    private JButton resetWallAppearanceButton;
+    private JButton resetFloorAppearanceButton;
+
 
     // --- Constants for CardLayout ---
     private static final String RECT_CARD = "Rectangular";
@@ -116,8 +125,8 @@ public class MainAppFrame extends JFrame {
 
         // Initialize camera after renderer and model are ready
         if (renderer != null && designModel != null && designModel.getRoom() != null) {
-            renderer.getCameraManager().resetTargetToCenter(designModel.getRoom());
-            renderer.updateCameraForModel(); // Call this to set initial state fully
+            // Initial setup based on model's default room
+            renderer.updateCameraForModel();
         }
 
         setupMenuBar();
@@ -130,7 +139,12 @@ public class MainAppFrame extends JFrame {
         updateUndoRedoState();
         if (renderer != null && showGridMenuItem != null) { renderer.setShowGrid(showGridMenuItem.isSelected()); }
 
-        // Add listener AFTER panel creation
+        // Add listener AFTER panel creation but BEFORE updateUIFromModel
+        // The updateUIFromModel call will trigger the listener if it's added before
+        // roomShapeComboBox.setSelectedItem is called. Add it after the initial update.
+        // Or, better, handle the listener during setup AFTER the combobox is created,
+        // but temporarily remove/add it in updateUIFromModel.
+        // Let's add it during setup and use the remove/add trick in updateUIFromModel.
         if (roomShapeComboBox != null) {
             // Define the listener separately
             roomShapeActionListener = e -> {
@@ -158,6 +172,10 @@ public class MainAppFrame extends JFrame {
             // Add the defined listener
             roomShapeComboBox.addActionListener(roomShapeActionListener);
         }
+
+        // Initial UI update must happen AFTER the listener is attached if listener logic affects UI
+        // The current updateUIFromModel removes/adds the listener, so order here is flexible.
+        // updateUIFromModel(); // Already called above
     }
 
     private void setupActions() {
@@ -165,7 +183,8 @@ public class MainAppFrame extends JFrame {
             @Override public void actionPerformed(ActionEvent e) {
                 try { if (undoManager.canUndo()) undoManager.undo(); }
                 catch (CannotUndoException ex) { System.err.println("Undo failed: " + ex); }
-                updateUndoRedoState(); updateUIFromModel(); designCanvas.repaint();
+                updateUndoRedoState();
+                // updateUIFromModel() and designCanvas.repaint() are now called within the undo/redo methods of the edits.
             }
         };
         undoAction.putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_Z, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
@@ -173,7 +192,8 @@ public class MainAppFrame extends JFrame {
             @Override public void actionPerformed(ActionEvent e) {
                 try { if (undoManager.canRedo()) undoManager.redo(); }
                 catch (CannotRedoException ex) { System.err.println("Redo failed: " + ex); }
-                updateUndoRedoState(); updateUIFromModel(); designCanvas.repaint();
+                updateUndoRedoState();
+                // updateUIFromModel() and designCanvas.repaint() are now called within the undo/redo methods of the edits.
             }
         };
         redoAction.putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_Y, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
@@ -289,6 +309,10 @@ public class MainAppFrame extends JFrame {
         roomPanel.add(Box.createVerticalStrut(10));
 
         // --- Room Appearance ---
+        JPanel roomAppearancePanel = new JPanel();
+        roomAppearancePanel.setLayout(new BoxLayout(roomAppearancePanel, BoxLayout.Y_AXIS));
+        roomAppearancePanel.setBorder(BorderFactory.createTitledBorder("Appearance"));
+
         wallColorButton = new JButton("Set Wall Color");
         wallColorButton.addActionListener(e -> handleSetRoomColor(true));
         floorColorButton = new JButton("Set Floor Color");
@@ -298,21 +322,36 @@ public class MainAppFrame extends JFrame {
         JButton floorTextureButtonLocal = new JButton("Set Floor Texture...");
         floorTextureButtonLocal.addActionListener(e -> handleSetRoomTexture(false));
 
-        JPanel appearanceButtonsPanel = new JPanel();
-        appearanceButtonsPanel.setLayout(new BoxLayout(appearanceButtonsPanel, BoxLayout.Y_AXIS));
+        // --- NEW: Reset Buttons ---
+        resetWallAppearanceButton = new JButton("Reset Wall Appearance");
+        resetWallAppearanceButton.addActionListener(e -> handleResetRoomAppearance(true));
+        resetFloorAppearanceButton = new JButton("Reset Floor Appearance");
+        resetFloorAppearanceButton.addActionListener(e -> handleResetRoomAppearance(false));
+
+
         wallColorButton.setAlignmentX(Component.LEFT_ALIGNMENT);
         floorColorButton.setAlignmentX(Component.LEFT_ALIGNMENT);
         wallTextureButtonLocal.setAlignmentX(Component.LEFT_ALIGNMENT);
         floorTextureButtonLocal.setAlignmentX(Component.LEFT_ALIGNMENT);
-        appearanceButtonsPanel.add(wallColorButton);
-        appearanceButtonsPanel.add(Box.createVerticalStrut(5));
-        appearanceButtonsPanel.add(floorColorButton);
-        appearanceButtonsPanel.add(Box.createVerticalStrut(5));
-        appearanceButtonsPanel.add(wallTextureButtonLocal);
-        appearanceButtonsPanel.add(Box.createVerticalStrut(5));
-        appearanceButtonsPanel.add(floorTextureButtonLocal);
-        appearanceButtonsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        roomPanel.add(appearanceButtonsPanel);
+        resetWallAppearanceButton.setAlignmentX(Component.LEFT_ALIGNMENT); // Align new buttons
+        resetFloorAppearanceButton.setAlignmentX(Component.LEFT_ALIGNMENT); // Align new buttons
+
+
+        roomAppearancePanel.add(wallColorButton);
+        roomAppearancePanel.add(Box.createVerticalStrut(5));
+        roomAppearancePanel.add(resetWallAppearanceButton); // Add reset after set color
+        roomAppearancePanel.add(Box.createVerticalStrut(10)); // Add space before floor
+        roomAppearancePanel.add(floorColorButton);
+        roomAppearancePanel.add(Box.createVerticalStrut(5));
+        roomAppearancePanel.add(resetFloorAppearanceButton); // Add reset after set color
+        roomAppearancePanel.add(Box.createVerticalStrut(10)); // Add space before textures
+        roomAppearancePanel.add(wallTextureButtonLocal); // Keep these
+        roomAppearancePanel.add(Box.createVerticalStrut(5));
+        roomAppearancePanel.add(floorTextureButtonLocal); // Keep these
+
+        roomAppearancePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        roomPanel.add(roomAppearancePanel); // Add the whole appearance panel
+
 
         panel.add(roomPanel); panel.add(Box.createVerticalStrut(15));
 
@@ -328,10 +367,10 @@ public class MainAppFrame extends JFrame {
                 if (idx != -1 && designModel.getSelectedFurniture() == null) {
                     // Update the properties fields when a library item is selected
                     // ONLY if no furniture is currently selected in the scene
-                    furnWidthField.setText(String.format("%.2f", FURNITURE_DIMS[idx][0]));
-                    furnDepthField.setText(String.format("%.2f", FURNITURE_DIMS[idx][1]));
-                    furnHeightField.setText(String.format("%.2f", FURNITURE_DIMS[idx][2]));
-                    furnRotationYField.setText("0.0");
+                    if (furnWidthField != null) furnWidthField.setText(String.format("%.2f", FURNITURE_DIMS[idx][0]));
+                    if (furnDepthField != null) furnDepthField.setText(String.format("%.2f", FURNITURE_DIMS[idx][1]));
+                    if (furnHeightField != null) furnHeightField.setText(String.format("%.2f", FURNITURE_DIMS[idx][2]));
+                    if (furnRotationYField != null) furnRotationYField.setText("0.0");
                 }
             }
         });
@@ -361,17 +400,17 @@ public class MainAppFrame extends JFrame {
         furnitureDimsPanel.add(new JLabel("Rotation Y:")); furnitureDimsPanel.add(furnRotationYField);
         furnitureDimsPanel.add(new JLabel("")); // Spacer
         JButton updateFurnDimsButton = new JButton("Update Dimensions");
-        updateFurnDimsButton.addActionListener(e -> handleUpdateFurnitureDimensions());
+        updateFurnDimsButton.addActionListener(e -> handleUpdateFurnitureDimensions()); // Call here
         furnitureDimsPanel.add(updateFurnDimsButton);
         furnitureDimsPanel.add(new JLabel("")); // Spacer
         JButton updateFurnRotationButton = new JButton("Update Rotation");
-        updateFurnRotationButton.addActionListener(e -> handleUpdateFurnitureRotation());
+        updateFurnRotationButton.addActionListener(e -> handleUpdateFurnitureRotation()); // Call here
         furnitureDimsPanel.add(updateFurnRotationButton);
         furnitureDimsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         furniturePropsPanelOuter.add(furnitureDimsPanel);
         furniturePropsPanelOuter.add(Box.createVerticalStrut(10));
 
-        furnitureAppearancePanel = new JPanel(); // <<< Initialize instance variable
+        furnitureAppearancePanel = new JPanel(); // Initialize instance variable
         furnitureAppearancePanel.setLayout(new BoxLayout(furnitureAppearancePanel, BoxLayout.Y_AXIS));
         furnitureAppearancePanel.setBorder(BorderFactory.createTitledBorder("Appearance"));
         furnitureColorButton = new JButton("Set Furniture Color");
@@ -416,18 +455,18 @@ public class MainAppFrame extends JFrame {
     // This method updates the entire control panel UI based on the current DesignModel state.
     // It's called after loading, clearing, undo/redo, or changing properties.
     private void updateUIFromModel() {
-        if (designModel == null || designModel.getRoom() == null || roomShapeComboBox == null) return;
+        if (designModel == null || designModel.getRoom() == null) return;
         Room room = designModel.getRoom();
 
         // -- Update Room Section --
 
         // Temporarily remove listener to prevent combo box update from re-triggering this method
         // Use the stored listener instance for reliable removal/addition
-        if (roomShapeActionListener != null) roomShapeComboBox.removeActionListener(roomShapeActionListener);
+        if (roomShapeComboBox != null && roomShapeActionListener != null) roomShapeComboBox.removeActionListener(roomShapeActionListener);
         // Set the combo box selection to match the actual shape in the model
-        roomShapeComboBox.setSelectedItem(room.getShape());
+        if (roomShapeComboBox != null) roomShapeComboBox.setSelectedItem(room.getShape());
         // Re-add the listener
-        if (roomShapeActionListener != null) roomShapeComboBox.addActionListener(roomShapeActionListener);
+        if (roomShapeComboBox != null && roomShapeActionListener != null) roomShapeComboBox.addActionListener(roomShapeActionListener);
 
 
         // Update shared height field always
@@ -436,8 +475,6 @@ public class MainAppFrame extends JFrame {
         }
 
         // Show the correct card panel corresponding to the model's shape
-        // NOTE: This should ideally happen *before* updating the fields on the card
-        //       if the listener wasn't calling this method itself. Now the order matters less.
         if (roomParameterCardLayout != null && roomParameterCardsPanel != null) {
             String cardToShow = RECT_CARD; // Default
             switch (room.getShape()) {
@@ -491,7 +528,6 @@ public class MainAppFrame extends JFrame {
         if(furnHeightField != null) furnHeightField.setEnabled(furnitureSelected);
         if(furnRotationYField != null) furnRotationYField.setEnabled(furnitureSelected);
         if(furnitureColorButton != null) furnitureColorButton.setEnabled(furnitureSelected);
-        if(furnitureDimsPanel != null) furnitureDimsPanel.setEnabled(furnitureSelected); // Also enable the panel itself? Maybe not necessary.
         if(furnitureTextureButton != null) furnitureTextureButton.setEnabled(furnitureSelected);
         if(deleteFurnitureButton != null) deleteFurnitureButton.setEnabled(furnitureSelected);
 
@@ -506,9 +542,9 @@ public class MainAppFrame extends JFrame {
             }
         }
         if (furnitureAppearancePanel != null) { // Also enable/disable appearance controls
-            furnitureAppearancePanel.setEnabled(furnitureSelected); // <<< Corrected access
-            Component[] comps = furnitureAppearancePanel.getComponents(); // <<< Corrected access
-            for(Component c : comps) { // <<< Corrected access
+            furnitureAppearancePanel.setEnabled(furnitureSelected);
+            Component[] comps = furnitureAppearancePanel.getComponents();
+            for(Component c : comps) {
                 if (c instanceof JButton || c instanceof JLabel) { // Add other types if needed
                     c.setEnabled(furnitureSelected);
                 }
@@ -561,7 +597,8 @@ public class MainAppFrame extends JFrame {
             try {
                 JMenu editMenu = mb.getMenu(1);
                 if (editMenu != null && editMenu.getItemCount() > 3) {
-                    editMenu.getItem(3).setEnabled(furnitureSelected); // Enable/disable "Delete Selected Furniture" menu item
+                    // Assuming "Delete Selected Furniture" is the 4th item (index 3)
+                    editMenu.getItem(3).setEnabled(furnitureSelected);
                 }
             } catch (Exception e) {
                 // Handle potential index out of bounds or null pointers gracefully
@@ -573,8 +610,10 @@ public class MainAppFrame extends JFrame {
 
     private Color getContrastColor(Color background) {
         if (background == null) return Color.BLACK;
-        double y = (299 * background.getRed() + 587 * background.getGreen() + 114 * background.getBlue()) / 1000.0;
-        return (y >= 128) ? Color.BLACK : Color.WHITE;
+        // Calculate relative luminance (approximated)
+        double luminance = (0.299 * background.getRed() + 0.587 * background.getGreen() + 0.114 * background.getBlue()) / 255.0;
+        // Use black text on light backgrounds, white text on dark backgrounds
+        return (luminance > 0.5) ? Color.BLACK : Color.WHITE;
     }
 
     private void updateUndoRedoState() {
@@ -603,13 +642,14 @@ public class MainAppFrame extends JFrame {
                     draggedFurniture = null;
                     isDraggingCamera = true;
                 } else if (SwingUtilities.isLeftMouseButton(e)) {
+                    // Finalize any pending keyboard move *before* potentially starting a mouse action
+                    finalizeKeyboardMove();
+
                     Furniture pickedFurniture = renderer.pickFurniture(e.getX(), e.getY());
 
                     if (pickedFurniture != null) { // Clicked ON existing furniture
                         isDraggingCamera = false; // Ensure camera drag is off
                         if (designModel.getSelectedFurniture() != pickedFurniture) {
-                            // Finalize any previous keyboard move before selecting new furniture
-                            finalizeKeyboardMove();
                             designModel.setSelectedFurniture(pickedFurniture);
                             updateUIFromModel(); // Update UI to show selected furniture's properties
                         }
@@ -633,7 +673,6 @@ public class MainAppFrame extends JFrame {
                     } else { // Clicked on EMPTY space
                         isDraggingCamera = false; // Ensure camera drag is off
                         if (designModel.getSelectedFurniture() != null) {
-                            finalizeKeyboardMove(); // Finalize move before deselecting
                             designModel.setSelectedFurniture(null); // Deselect furniture
                             updateUIFromModel();                  // Update UI to reflect deselection
                             designCanvas.repaint();               // Redraw to remove selection indicator
@@ -649,6 +688,8 @@ public class MainAppFrame extends JFrame {
                         }
                     }
                 } else if (SwingUtilities.isMiddleMouseButton(e)){ // Middle mouse always pans
+                    // Finalize any pending keyboard move
+                    finalizeKeyboardMove();
                     isDraggingFurniture = false;
                     draggedFurniture = null;
                     isDraggingCamera = true;
@@ -662,8 +703,13 @@ public class MainAppFrame extends JFrame {
                 // Additional check: ensure only one drag type is active
                 if (isDraggingCamera && isDraggingFurniture) {
                     System.err.println("Warning: Both camera and furniture drag flags are true!");
-                    isDraggingFurniture = false; // Prioritize camera? Or reset both? Reset furniture seems safer.
+                    // Prioritize camera? Or reset both? Reset furniture seems safer for typical interaction.
+                    isDraggingFurniture = false;
+                    draggedFurniture = null;
+                    dragOffset = null;
+                    dragStartPosition = null;
                 }
+
 
                 float deltaX = e.getX() - lastMousePoint.x;
                 float deltaY = e.getY() - lastMousePoint.y;
@@ -703,8 +749,7 @@ public class MainAppFrame extends JFrame {
                     if (!draggedFurniture.getPosition().equals(dragStartPosition)) {
                         registerUndoableEdit(new MoveFurnitureEdit(draggedFurniture, dragStartPosition, draggedFurniture.getPosition()));
                     }
-                    // Update UI in case position didn't change significantly but selection remains
-                    updateUIFromModel();
+                    // updateUIFromModel() and repaint() are handled by the edit's undo/redo methods if registered.
                 } else {
                     // Clear start position even if no move happened, to be safe
                     dragStartPosition = null;
@@ -773,10 +818,18 @@ public class MainAppFrame extends JFrame {
 
             // Calculate cumulative movement based on currently pressed keys
             float dx = 0, dz = 0;
+            // Movement is relative to the *current* camera orientation for a more intuitive feel
+            // In 2D mode (top-down), UP is -Z, DOWN is +Z, LEFT is -X, RIGHT is +X
+            // In 3D mode, this is more complex, depending on yaw/pitch. For simplicity,
+            // let's keep it aligned with world XZ axes regardless of 3D view rotation for now.
+            // A more advanced approach would project movement onto the camera's Right/Forward vectors on the XZ plane.
+
+            // Simple XZ axis movement (works well for 2D and angled 3D)
             if (pressedKeys.contains(KeyEvent.VK_UP)) dz -= KEYBOARD_MOVE_STEP;
             if (pressedKeys.contains(KeyEvent.VK_DOWN)) dz += KEYBOARD_MOVE_STEP;
             if (pressedKeys.contains(KeyEvent.VK_LEFT)) dx -= KEYBOARD_MOVE_STEP;
             if (pressedKeys.contains(KeyEvent.VK_RIGHT)) dx += KEYBOARD_MOVE_STEP;
+
 
             // Apply movement relative to current position for continuous movement feel
             Vector3f currentPos = selected.getPosition();
@@ -831,7 +884,7 @@ public class MainAppFrame extends JFrame {
             if (selected != null && !selected.getPosition().equals(keyboardMoveStartPosition)) {
                 // Register the completed move as a single undoable edit
                 registerUndoableEdit(new MoveFurnitureEdit(selected, keyboardMoveStartPosition, selected.getPosition()));
-                updateUIFromModel(); // Update UI in case position changed slightly
+                // updateUIFromModel() and repaint() are handled by the edit's undo/redo methods if registered.
             }
             isMovingWithKeyboard = false;
             keyboardMoveStartPosition = null;
@@ -852,6 +905,7 @@ public class MainAppFrame extends JFrame {
             pressedKeys.clear();
             designCanvas.repaint(); // Redraw with reverted position
             System.out.println("Keyboard move cancelled.");
+            // updateUIFromModel is not needed here as state wasn't saved/committed
         }
     }
 
@@ -883,7 +937,7 @@ public class MainAppFrame extends JFrame {
         fc.setDialogTitle("Open Design File");
         FileNameExtensionFilter filter = new FileNameExtensionFilter("Furniture Design Files (*.furn)", "furn");
         fc.setFileFilter(filter);
-        fc.setAcceptAllFileFilterUsed(false);
+        fc.setAcceptAllFileFilterUsed(false); // Corrected method name
         int result = fc.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             File file = fc.getSelectedFile();
@@ -912,7 +966,7 @@ public class MainAppFrame extends JFrame {
         fc.setDialogTitle("Save Design File");
         FileNameExtensionFilter filter = new FileNameExtensionFilter("Furniture Design Files (*.furn)", "furn");
         fc.setFileFilter(filter);
-        fc.setAcceptAllFileFilterUsed(false);
+        fc.setAcceptAllFileFilterUsed(false); // Corrected method name
         int result = fc.showSaveDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             File file = fc.getSelectedFile();
@@ -958,25 +1012,27 @@ public class MainAppFrame extends JFrame {
                 Furniture newFurniture = new Furniture(type, initialPos, w, d, h);
                 designModel.addFurniture(newFurniture); // Adds and selects
                 registerUndoableEdit(new AddFurnitureEdit(newFurniture));
-                updateUIFromModel(); // Reflect selection and properties
+                // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
                 updateUndoRedoState();
-                designCanvas.repaint();
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(this,"Invalid dimensions specified for new furniture. Using defaults.","Input Error", JOptionPane.WARNING_MESSAGE);
                 // Try adding with default dimensions
                 try {
-                    float w = FURNITURE_DIMS[selectedIndex][0];
-                    float d = FURNITURE_DIMS[selectedIndex][1];
-                    float h = FURNITURE_DIMS[selectedIndex][2];
+                    int defaultIdx = (selectedIndex >= 0 && selectedIndex < FURNITURE_DIMS.length) ? selectedIndex : 0;
+                    String defaultType = FURNITURE_TYPES[defaultIdx]; // Use default type if selectedIndex was invalid
+                    float w = FURNITURE_DIMS[defaultIdx][0];
+                    float d = FURNITURE_DIMS[defaultIdx][1];
+                    float h = FURNITURE_DIMS[defaultIdx][2];
                     Vector3f initialPos = designModel.getRoom().calculateCenter();
                     if (initialPos == null) initialPos = new Vector3f(2.5f, 0, 2.5f);
                     initialPos.y = 0;
-                    Furniture newFurniture = new Furniture(type, initialPos, w, d, h);
+                    Furniture newFurniture = new Furniture(defaultType, initialPos, w, d, h);
                     designModel.addFurniture(newFurniture);
                     registerUndoableEdit(new AddFurnitureEdit(newFurniture));
-                    updateUIFromModel(); updateUndoRedoState(); designCanvas.repaint();
+                    // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
+                    updateUndoRedoState();
                 } catch (Exception finalEx) { // Catch any other error during default add
-                    JOptionPane.showMessageDialog(this,"Failed to add furniture: " + finalEx.getMessage(),"Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this,"Failed to add furniture with defaults: " + finalEx.getMessage(),"Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
         } else {
@@ -990,9 +1046,8 @@ public class MainAppFrame extends JFrame {
         if (selected != null) {
             designModel.removeFurniture(selected); // Removes and deselects
             registerUndoableEdit(new RemoveFurnitureEdit(selected));
-            updateUIFromModel();
+            // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
             updateUndoRedoState();
-            designCanvas.repaint();
         } else {
             JOptionPane.showMessageDialog(this, "No furniture selected to delete.", "Delete Furniture", JOptionPane.INFORMATION_MESSAGE);
         }
@@ -1033,6 +1088,7 @@ public class MainAppFrame extends JFrame {
                     w = Float.parseFloat(roomWidthField.getText());
                     l = Float.parseFloat(roomLengthField.getText());
                     if (w <= 0 || l <= 0) throw new NumberFormatException("Rectangular dimensions must be positive");
+                    // Check for changes in shape or dimensions
                     changed = currentShape != selectedShape || Math.abs(h - currentH) > 1e-3 ||
                             Math.abs(w - currentW) > 1e-3 || Math.abs(l - currentL) > 1e-3;
                     break;
@@ -1070,25 +1126,71 @@ public class MainAppFrame extends JFrame {
             if (changed) {
                 // The constructor of the Edit applies the change immediately using the values read from UI
                 registerUndoableEdit(new ChangeRoomPropertiesEdit(room, selectedShape, h, w, l, r, loW, loL, liW, liL, tbW, tbL, tsW, tsL));
-                designCanvas.repaint();
-                if(renderer != null) {
-                    renderer.getCameraManager().resetTargetToCenter(designModel.getRoom()); // Reset camera target
-                    renderer.updateCameraForModel(); // Update camera distance/settings
-                }
-                updateUIFromModel(); // Refresh UI controls TO MATCH THE NEW MODEL STATE
-                return; // Exit after successful update
-            } // END IF (changed)
+                // updateUIFromModel() and repaint() are handled by the edit's undo/redo methods.
+                updateUndoRedoState();
+                // Return after successful update
+                return;
+            }
 
         } catch (NumberFormatException ex) {
             JOptionPane.showMessageDialog(this,
                     "Invalid number format or dimensions:\n" + ex.getMessage(),
                     "Input Error",
                     JOptionPane.ERROR_MESSAGE);
-            updateUIFromModel(); // Reset UI to current valid model state
-        } // END CATCH / END TRY
-    } // END handleUpdateRoomSize METHOD
+            // Reset UI fields to match the current valid model state if parsing failed
+            updateUIFromModel();
+        }
+    }
+
+    // MODIFIED: Use ChangeRoomAppearanceEdit
+    private void handleSetRoomColor(boolean isWall) {
+        finalizeKeyboardMove(); // Finalize any pending move
+        Room room = designModel.getRoom();
+        if (room == null) return;
+
+        Color initialColor = isWall ? room.getWallColor() : room.getFloorColor();
+        Color newColor = JColorChooser.showDialog(this, "Select " + (isWall ? "Wall" : "Floor") + " Color", initialColor);
+
+        // Note: The edit will handle checking if color actually changed.
+        // Passing null for texture path here means "don't change texture path".
+        if (newColor != null) { // Only create edit if user didn't cancel color chooser
+            registerUndoableEdit(new ChangeRoomAppearanceEdit(room, isWall, newColor, null)); // Pass new color, null texture path
+            // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
+            updateUndoRedoState(); // Update undo state now
+        }
+    }
+
+    // NEW: Handler for resetting wall or floor appearance
+    private void handleResetRoomAppearance(boolean isWall) {
+        finalizeKeyboardMove(); // Finalize any pending move
+        Room room = designModel.getRoom();
+        if (room == null) return;
+
+        Color defaultColor = isWall ? Color.WHITE : Color.LIGHT_GRAY; // Get default colors from Room constructor logic
+
+        // Create an edit to change color to default AND clear the texture path
+        registerUndoableEdit(new ChangeRoomAppearanceEdit(room, isWall, defaultColor, "")); // Pass default color, empty string texture path to clear
+
+        // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
+        updateUndoRedoState();
+    }
 
 
+    private void handleSetFurnitureColor() {
+        finalizeKeyboardMove(); // Finalize any pending move
+        Furniture selected = designModel.getSelectedFurniture();
+        if (selected == null) return;
+        Color initialColor = selected.getColor();
+        Color newColor = JColorChooser.showDialog(this, "Select Furniture Color", initialColor);
+        if (newColor != null && !newColor.equals(initialColor)) {
+            // Pass existing texture path so the edit doesn't clear it
+            registerUndoableEdit(new ChangeFurnitureAppearanceEdit(selected, newColor, selected.getTexturePath()));
+            // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
+            updateUndoRedoState();
+        }
+    }
+
+    // Added method definitions that were missing for the compiler
     private void handleUpdateFurnitureDimensions() {
         finalizeKeyboardMove(); // Finalize any pending move
         Furniture selected = designModel.getSelectedFurniture();
@@ -1106,8 +1208,8 @@ public class MainAppFrame extends JFrame {
                     Math.abs(newHeight - selected.getHeight()) > 1e-3)
             {
                 registerUndoableEdit(new ChangeFurnitureDimensionsEdit(selected, newWidth, newDepth, newHeight));
-                designCanvas.repaint();
-                updateUIFromModel(); // Update UI to reflect changes
+                // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
+                updateUndoRedoState(); // Update undo state now
             }
 
         } catch (NumberFormatException ex) {
@@ -1115,6 +1217,8 @@ public class MainAppFrame extends JFrame {
             updateUIFromModel(); // Reset UI fields to current model state
         }
     }
+
+    // Added method definitions that were missing for the compiler
     private void handleUpdateFurnitureRotation() {
         finalizeKeyboardMove(); // Finalize any pending move
         Furniture selected = designModel.getSelectedFurniture();
@@ -1124,8 +1228,8 @@ public class MainAppFrame extends JFrame {
             // Check if rotation actually changed
             if (Math.abs(newRotationY - selected.getRotation().y) > 1e-2) {
                 registerUndoableEdit(new ChangeFurnitureRotationEdit(selected, newRotationY));
-                designCanvas.repaint();
-                updateUIFromModel(); // Update UI to reflect changes
+                // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
+                updateUndoRedoState(); // Update undo state now
             }
         } catch (NumberFormatException ex) {
             JOptionPane.showMessageDialog(this, "Invalid rotation angle.", "Input Error", JOptionPane.ERROR_MESSAGE);
@@ -1133,33 +1237,12 @@ public class MainAppFrame extends JFrame {
         }
     }
 
-    private void handleSetRoomColor(boolean isWall) {
-        finalizeKeyboardMove(); // Finalize any pending move
-        Room room = designModel.getRoom();
-        Color initialColor = isWall ? room.getWallColor() : room.getFloorColor();
-        Color newColor = JColorChooser.showDialog(this, "Select " + (isWall ? "Wall" : "Floor") + " Color", initialColor);
-        if (newColor != null && !newColor.equals(initialColor)) {
-            registerUndoableEdit(new ChangeRoomAppearanceEdit(room, isWall, newColor, null));
-            designCanvas.repaint();
-            updateUIFromModel(); // Update button background
-        }
-    }
-    private void handleSetFurnitureColor() {
-        finalizeKeyboardMove(); // Finalize any pending move
-        Furniture selected = designModel.getSelectedFurniture();
-        if (selected == null) return;
-        Color initialColor = selected.getColor();
-        Color newColor = JColorChooser.showDialog(this, "Select Furniture Color", initialColor);
-        if (newColor != null && !newColor.equals(initialColor)) {
-            registerUndoableEdit(new ChangeFurnitureAppearanceEdit(selected, newColor, selected.getTexturePath()));
-            designCanvas.repaint();
-            updateUIFromModel(); // Update button background
-        }
-    }
 
     private void handleSetRoomTexture(boolean isWall) {
         finalizeKeyboardMove(); // Finalize any pending move
         Room room = designModel.getRoom();
+        if (room == null) return;
+
         String oldTexturePath = isWall ? room.getWallTexturePath() : room.getFloorTexturePath();
         String newTexturePath = selectTextureFile(); // Allow selecting a file
 
@@ -1177,16 +1260,25 @@ public class MainAppFrame extends JFrame {
         }
         // Check if texture actually changed (comparing paths, handle null/empty)
         boolean pathChanged = false;
-        if (oldTexturePath == null && (newTexturePath != null && !newTexturePath.isEmpty())) pathChanged = true;
-        else if (oldTexturePath != null && !oldTexturePath.equals(newTexturePath)) pathChanged = true;
-        // else if (oldTexturePath != null && oldTexturePath.isEmpty() && (newTexturePath != null && !newTexturePath.isEmpty())) pathChanged = true; // Redundant
-        // else if (oldTexturePath != null && !oldTexturePath.isEmpty() && (newTexturePath == null || newTexturePath.isEmpty())) pathChanged = true; // Covered by !equals
+        // Use equals for String comparison, handles null/empty appropriately if we are careful
+        // Consider null and empty string "" as the same state (no texture)
+        boolean oldTexturePresent = (oldTexturePath != null && !oldTexturePath.isEmpty());
+        boolean newTexturePresent = (newTexturePath != null && !newTexturePath.isEmpty());
+
+        if (oldTexturePresent != newTexturePresent) { // State changed (had texture, now doesn't, or vice versa)
+            pathChanged = true;
+        } else if (oldTexturePresent && newTexturePresent) { // Both have textures, check if path is different
+            if (!oldTexturePath.equals(newTexturePath)) pathChanged = true;
+        }
+        // If both were null/empty, pathChanged remains false.
 
 
         if (pathChanged) {
-            registerUndoableEdit(new ChangeRoomAppearanceEdit(room, isWall, null, newTexturePath));
-            designCanvas.repaint();
-            // No direct UI update needed for texture path itself, maybe a label later
+            // Pass existing color so the edit doesn't change it
+            Color currentColor = isWall ? room.getWallColor() : room.getFloorColor();
+            registerUndoableEdit(new ChangeRoomAppearanceEdit(room, isWall, currentColor, newTexturePath));
+            // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
+            updateUndoRedoState();
         }
     }
     private void handleSetFurnitureTexture() {
@@ -1205,15 +1297,20 @@ public class MainAppFrame extends JFrame {
         }
         // Check if texture actually changed
         boolean pathChanged = false;
-        if (oldTexturePath == null && (newTexturePath != null && !newTexturePath.isEmpty())) pathChanged = true;
-        else if (oldTexturePath != null && !oldTexturePath.equals(newTexturePath)) pathChanged = true;
-        // else if (oldTexturePath != null && oldTexturePath.isEmpty() && (newTexturePath != null && !newTexturePath.isEmpty())) pathChanged = true; // Redundant
-        // else if (oldTexturePath != null && !oldTexturePath.isEmpty() && (newTexturePath == null || newTexturePath.isEmpty())) pathChanged = true; // Covered by !equals
+        boolean oldTexturePresent = (oldTexturePath != null && !oldTexturePath.isEmpty());
+        boolean newTexturePresent = (newTexturePath != null && !newTexturePath.isEmpty());
+
+        if (oldTexturePresent != newTexturePresent) {
+            pathChanged = true;
+        } else if (oldTexturePresent && newTexturePresent) {
+            if (!oldTexturePath.equals(newTexturePath)) pathChanged = true;
+        }
+
 
         if (pathChanged) {
             registerUndoableEdit(new ChangeFurnitureAppearanceEdit(selected, selected.getColor(), newTexturePath));
-            designCanvas.repaint();
-            // No direct UI update needed for texture path itself
+            // updateUIFromModel() and designCanvas.repaint() are handled by the edit's undo/redo methods.
+            updateUndoRedoState();
         }
     }
 
@@ -1227,10 +1324,11 @@ public class MainAppFrame extends JFrame {
         fc.setDialogTitle("Select Texture Image");
         FileNameExtensionFilter filter = new FileNameExtensionFilter("Image Files (png, jpg, bmp, gif)", "png", "jpg", "jpeg", "bmp", "gif");
         fc.setFileFilter(filter);
-        fc.setAcceptAllFileFilterUsed(false);
+        fc.setAcceptAllFileFilterUsed(false); // Corrected method name
         int result = fc.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             File selectedFile = fc.getSelectedFile();
+            // Return the absolute path to ensure it's unique even if opened from different directories
             return (selectedFile != null) ? selectedFile.getAbsolutePath() : null;
         } else {
             return null; // Return null if cancelled
@@ -1245,7 +1343,7 @@ public class MainAppFrame extends JFrame {
         if (choice == JOptionPane.YES_OPTION) {
             animator.stop(); // Stop animator before disposing
             dispose();       // Close the window
-            System.exit(0);  // Terminate the application
+            // System.exit(0); // Keep this line if you want to guarantee process exit
         }
     }
 
@@ -1259,30 +1357,27 @@ public class MainAppFrame extends JFrame {
     }
 
     // --- Undoable Edit Classes ---
-    // (AddFurnitureEdit, RemoveFurnitureEdit, MoveFurnitureEdit, ChangeFurnitureDimensionsEdit,
-    //  ChangeFurnitureRotationEdit, ChangeFurnitureAppearanceEdit, ChangeRoomAppearanceEdit,
-    //  ChangeRoomPropertiesEdit remain the same as the previous correct version)
     private class AddFurnitureEdit extends AbstractUndoableEdit {
         private final Furniture addedFurniture;
         public AddFurnitureEdit(Furniture f) { this.addedFurniture = f; }
         @Override public String getPresentationName() { return "Add " + addedFurniture.getType(); }
-        @Override public void undo() throws CannotUndoException { super.undo(); designModel.removeFurniture(addedFurniture); }
-        @Override public void redo() throws CannotRedoException { super.redo(); designModel.addFurniture(addedFurniture); }
+        @Override public void undo() throws CannotUndoException { super.undo(); designModel.removeFurniture(addedFurniture); updateUIFromModel(); designCanvas.repaint(); }
+        @Override public void redo() throws CannotRedoException { super.redo(); designModel.addFurniture(addedFurniture); updateUIFromModel(); designCanvas.repaint(); } // Adds AND selects
     }
     private class RemoveFurnitureEdit extends AbstractUndoableEdit {
         private final Furniture removedFurniture;
         public RemoveFurnitureEdit(Furniture f) { this.removedFurniture = f; }
         @Override public String getPresentationName() { return "Remove " + removedFurniture.getType(); }
-        @Override public void undo() throws CannotUndoException { super.undo(); designModel.addFurniture(removedFurniture); } // Adds AND selects
-        @Override public void redo() throws CannotRedoException { super.redo(); designModel.removeFurniture(removedFurniture); } // Removes AND deselects
+        @Override public void undo() throws CannotUndoException { super.undo(); designModel.addFurniture(removedFurniture); updateUIFromModel(); designCanvas.repaint(); } // Adds AND selects
+        @Override public void redo() throws CannotRedoException { super.redo(); designModel.removeFurniture(removedFurniture); updateUIFromModel(); designCanvas.repaint(); } // Removes AND deselects
     }
     private class MoveFurnitureEdit extends AbstractUndoableEdit {
         private final Furniture movedFurniture; private final Vector3f oldPos, newPos;
         public MoveFurnitureEdit(Furniture f, Vector3f oldP, Vector3f newP) {
             this.movedFurniture = f; this.oldPos = oldP.clone(); this.newPos = newP.clone(); }
         @Override public String getPresentationName() { return "Move " + movedFurniture.getType(); }
-        @Override public void undo() throws CannotUndoException { super.undo(); movedFurniture.setPosition(oldPos); designModel.setSelectedFurniture(movedFurniture); }
-        @Override public void redo() throws CannotRedoException { super.redo(); movedFurniture.setPosition(newPos); designModel.setSelectedFurniture(movedFurniture); }
+        @Override public void undo() throws CannotUndoException { super.undo(); movedFurniture.setPosition(oldPos); designModel.setSelectedFurniture(movedFurniture); updateUIFromModel(); designCanvas.repaint(); }
+        @Override public void redo() throws CannotRedoException { super.redo(); movedFurniture.setPosition(newPos); designModel.setSelectedFurniture(movedFurniture); updateUIFromModel(); designCanvas.repaint(); }
     }
     private class ChangeFurnitureDimensionsEdit extends AbstractUndoableEdit {
         private final Furniture furniture; private final float oldW, oldD, oldH, newW, newD, newH;
@@ -1294,8 +1389,8 @@ public class MainAppFrame extends JFrame {
         }
         private void apply(float w, float d, float h) { furniture.setWidth(w); furniture.setDepth(d); furniture.setHeight(h); }
         @Override public String getPresentationName() { return "Resize " + furniture.getType(); }
-        @Override public void undo() throws CannotUndoException { super.undo(); apply(oldW, oldD, oldH); designModel.setSelectedFurniture(furniture); }
-        @Override public void redo() throws CannotRedoException { super.redo(); apply(newW, newD, newH); designModel.setSelectedFurniture(furniture); }
+        @Override public void undo() throws CannotUndoException { super.undo(); apply(oldW, oldD, oldH); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
+        @Override public void redo() throws CannotRedoException { super.redo(); apply(newW, newD, newH); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
     }
     private class ChangeFurnitureRotationEdit extends AbstractUndoableEdit {
         private final Furniture furniture; private final float oldRotY, newRotY;
@@ -1305,8 +1400,8 @@ public class MainAppFrame extends JFrame {
         }
         private void apply(float rotY) { furniture.getRotation().y = rotY; }
         @Override public String getPresentationName() { return "Rotate " + furniture.getType(); }
-        @Override public void undo() throws CannotUndoException { super.undo(); apply(oldRotY); designModel.setSelectedFurniture(furniture); }
-        @Override public void redo() throws CannotRedoException { super.redo(); apply(newRotY); designModel.setSelectedFurniture(furniture); }
+        @Override public void undo() throws CannotUndoException { super.undo(); apply(oldRotY); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
+        @Override public void redo() throws CannotRedoException { super.redo(); apply(newRotY); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
     }
     private class ChangeFurnitureAppearanceEdit extends AbstractUndoableEdit {
         private final Furniture furniture; private final Color oldColor, newColor; private final String oldTexture, newTexture;
@@ -1316,29 +1411,45 @@ public class MainAppFrame extends JFrame {
             this.newColor = c; this.newTexture = t;
             apply(newColor, newTexture); // Apply immediately
         }
-        private void apply(Color c, String t) { furniture.setColor(c); furniture.setTexturePath(t); }
+        private void apply(Color c, String t) {
+            if (c != null) furniture.setColor(c);
+            // Handle texture path change: null or empty string clears it
+            // Only change texture path if the newTexture parameter is non-null (meaning the user explicitly changed texture or reset)
+            if (t != null) furniture.setTexturePath(t.isEmpty() ? null : t);
+            // else if (oldTexture == null && (t == null || t.isEmpty())) { /* no change needed */ } // This case is covered by t != null check above if t is ""
+        }
         @Override public String getPresentationName() { return "Change " + furniture.getType() + " Appearance"; }
-        @Override public void undo() throws CannotUndoException { super.undo(); apply(oldColor, oldTexture); designModel.setSelectedFurniture(furniture); }
-        @Override public void redo() throws CannotRedoException { super.redo(); apply(newColor, newTexture); designModel.setSelectedFurniture(furniture); }
+        @Override public void undo() throws CannotUndoException { super.undo(); apply(oldColor, oldTexture); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
+        @Override public void redo() throws CannotRedoException { super.redo(); apply(newColor, newTexture); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
     }
     private class ChangeRoomAppearanceEdit extends AbstractUndoableEdit {
         private final Room room; private final boolean isWall;
         private final Color oldColor, newColor; private final String oldTexture, newTexture;
         public ChangeRoomAppearanceEdit(Room r, boolean wall, Color c, String t) {
             this.room = r; this.isWall = wall;
+            // Store state BEFORE change
             this.oldColor = wall ? r.getWallColor() : r.getFloorColor();
             this.oldTexture = wall ? r.getWallTexturePath() : r.getFloorTexturePath();
-            // Only one of color or texture should be non-null from the caller
+            // Store new state from parameters.
+            // c == null means don't change color. t == null means don't change texture path. t == "" means clear texture.
             this.newColor = c; this.newTexture = t;
-            apply(newColor, newTexture); // Apply immediately
+            // Apply the new state immediately
+            apply(newColor, newTexture);
         }
+        // Apply method handles null/empty string for texture path
         private void apply(Color c, String t) {
-            if (isWall) { if (c != null) room.setWallColor(c); if (t != null) room.setWallTexturePath(t); }
-            else { if (c != null) room.setFloorColor(c); if (t != null) room.setFloorTexturePath(t); }
+            if (isWall) {
+                if (c != null) room.setWallColor(c); // Only change color if c is not null
+                if (t != null) room.setWallTexturePath(t.isEmpty() ? null : t); // Only change texture if t is not null (user chose/cleared), set to null if empty
+            }
+            else {
+                if (c != null) room.setFloorColor(c); // Only change color if c is not null
+                if (t != null) room.setFloorTexturePath(t.isEmpty() ? null : t); // Only change texture if t is not null, set to null if empty
+            }
         }
         @Override public String getPresentationName() { return "Change " + (isWall ? "Wall" : "Floor") + " Appearance"; }
-        @Override public void undo() throws CannotUndoException { super.undo(); apply(oldColor, oldTexture); }
-        @Override public void redo() throws CannotRedoException { super.redo(); apply(newColor, newTexture); }
+        @Override public void undo() throws CannotUndoException { super.undo(); apply(oldColor, oldTexture); updateUIFromModel(); designCanvas.repaint(); }
+        @Override public void redo() throws CannotRedoException { super.redo(); apply(newColor, newTexture); updateUIFromModel(); designCanvas.repaint(); }
     }
     private class ChangeRoomPropertiesEdit extends AbstractUndoableEdit {
         private final Room room;
@@ -1372,7 +1483,7 @@ public class MainAppFrame extends JFrame {
         @Override public String getPresentationName() { return "Change Room Shape/Size"; }
         @Override public void undo() throws CannotUndoException { super.undo(); applyProperties(oldShape, oldH, oldW, oldL, oldR, oldLoW, oldLoL, oldLiW, oldLiL, oldTbW, oldTbL, oldTsW, oldTsL); afterChange(); }
         @Override public void redo() throws CannotRedoException { super.redo(); applyProperties(newShape, newH, newW, newL, newR, newLoW, newLoL, newLiW, newLiL, newTbW, newTbL, newTsW, newTsL); afterChange(); }
-        private void afterChange() { designCanvas.repaint(); updateUIFromModel(); if(renderer != null && designModel.getRoom() != null) { renderer.getCameraManager().resetTargetToCenter(designModel.getRoom()); renderer.updateCameraForModel(); } }
+        private void afterChange() { designCanvas.repaint(); updateUIFromModel(); if(renderer != null && designModel.getRoom() != null) { renderer.updateCameraForModel(); } }
     }
 
 }
