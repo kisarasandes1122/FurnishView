@@ -10,6 +10,9 @@ class FurnishViewApp {
             // e.printStackTrace(); // Optional: print stack trace for debugging
         }
 
+        // Initialize project directories
+        ProjectManager.initializeDesignsDirectory();
+
         // Run the application on the Event Dispatch Thread (EDT)
         SwingUtilities.invokeLater(() -> {
             // Start with the Login Frame

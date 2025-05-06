@@ -148,8 +148,9 @@ public class LoginFrame extends JFrame {
 
         if (username.equals("designer") && password.equals("password")) {
             this.dispose();
-            MainAppFrame mainApp = new MainAppFrame();
-            mainApp.setVisible(true);
+            // Open the ProjectDashboardFrame instead of MainAppFrame
+            ProjectDashboardFrame dashboardFrame = new ProjectDashboardFrame(username);
+            dashboardFrame.setVisible(true);
         } else {
             JOptionPane.showMessageDialog(
                     this,

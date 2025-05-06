@@ -60,6 +60,10 @@ public class MainAppFrame extends JFrame {
     // Floating point comparison epsilon
     private static final float EPSILON = 1e-3f;
 
+    private File currentProjectFile = null;
+    private String currentProjectName = null;
+    private String currentUsername = null;
+
     // --- Furniture Library Data (Make static and add getters) ---
     private static final String[] FURNITURE_TYPES = {
             "Chair", "Sofa", "Dining Table", "Side Table", "Bed", "Bookshelf",
@@ -83,51 +87,139 @@ public class MainAppFrame extends JFrame {
     public static String[] getFurnitureTypes() { return FURNITURE_TYPES; }
     public static float[][] getFurnitureDims() { return FURNITURE_DIMS; }
 
-
     public MainAppFrame() {
-        setTitle("Furniture Designer"); setSize(1400, 900);
-        setLocationRelativeTo(null); setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        addWindowListener(new WindowAdapter() { @Override public void windowClosing(WindowEvent e) { handleExit(); } });
+        // Basic setup
+        setTitle("Furniture Designer - New Design");
+        setSize(1400, 900);  // Original size
+        setMinimumSize(new Dimension(800, 600));  // Prevent UI from disappearing
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                handleExit();
+            }
+        });
 
+        // Continue with your existing constructor code...
         designModel = new DesignModel();
-        undoManager = new UndoManager(); // Now recognized
-        setupActions(); // Defined below
+        undoManager = new UndoManager();
+        setupActions();
 
-        GLProfile glp = GLProfile.get(GLProfile.GL2); // Now recognized
-        GLCapabilities caps = new GLCapabilities(glp); // Now recognized
-        caps.setSampleBuffers(true); caps.setNumSamples(4);
-        designCanvas = new GLJPanel(caps); // Now recognized
-        renderer = new DesignRenderer(designModel); designCanvas.addGLEventListener(renderer);
+        GLProfile glp = GLProfile.get(GLProfile.GL2);
+        GLCapabilities caps = new GLCapabilities(glp);
+        caps.setSampleBuffers(true);
+        caps.setNumSamples(4);
+        designCanvas = new GLJPanel(caps);
+        renderer = new DesignRenderer(designModel);
+        designCanvas.addGLEventListener(renderer);
 
         designCanvas.setFocusable(true);
-        setupMouseInteraction(); // Defined below
-        setupKeyInteraction();   // Defined below
+        setupMouseInteraction();
+        setupKeyInteraction();
 
-        animator = new FPSAnimator(designCanvas, 60); // Now recognized
+        animator = new FPSAnimator(designCanvas, 60);
         animator.start();
 
         if (renderer != null && designModel != null && designModel.getRoom() != null) {
             renderer.updateCameraForModel();
         }
 
-        setupMenuBar(); // Defined below
+        setupMenuBar();
         JPanel mainContent = new JPanel(new BorderLayout());
 
-        // --- Instantiate the new panels ---
         roomPropertiesPanel = new RoomPropertiesPanel(this);
         furnitureLibraryPanel = new FurnitureLibraryPanel(this);
         selectedFurniturePanel = new SelectedFurniturePanel(this);
 
-        // --- Create the main control panel using the new panels ---
-        controlPanel = createControlPanel(); // This method is now much simpler
+        controlPanel = createControlPanel();
 
         mainContent.add(new JScrollPane(controlPanel), BorderLayout.WEST);
-        mainContent.add(designCanvas, BorderLayout.CENTER); add(mainContent);
+        mainContent.add(designCanvas, BorderLayout.CENTER);
+        add(mainContent);
 
-        updateUIFromModel(); // Initial UI state based on model
-        updateUndoRedoState(); // Defined below
-        if (renderer != null && showGridMenuItem != null) { renderer.setShowGrid(showGridMenuItem.isSelected()); }
+        updateUIFromModel();
+        updateUndoRedoState();
+        if (renderer != null && showGridMenuItem != null) {
+            renderer.setShowGrid(showGridMenuItem.isSelected());
+        }
 
+        // Add these at the end of the constructor
+        pack();  // Ensure components are sized correctly
+        setLocationRelativeTo(null);  // Center on screen
+    }
+
+    public MainAppFrame(DesignModel model, File projectFile, String projectName, String username) {
+        // Store project information
+        this.currentProjectFile = projectFile;
+        this.currentProjectName = projectName;
+        this.currentUsername = username;
+
+        // Set up the frame
+        setTitle("Furniture Designer - " + (projectName != null ? projectName : "New Design"));
+        setSize(1400, 900);
+        setMinimumSize(new Dimension(800, 600));  // Prevent UI from disappearing
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                handleExit();
+            }
+        });
+
+        // Use the provided model instead of creating a new one
+        if (model != null) {
+            this.designModel = model;
+        } else {
+            this.designModel = new DesignModel();
+        }
+
+        // Continue with initialization as in original constructor
+        undoManager = new UndoManager();
+        setupActions();
+
+        GLProfile glp = GLProfile.get(GLProfile.GL2);
+        GLCapabilities caps = new GLCapabilities(glp);
+        caps.setSampleBuffers(true);
+        caps.setNumSamples(4);
+        designCanvas = new GLJPanel(caps);
+        renderer = new DesignRenderer(designModel);
+        designCanvas.addGLEventListener(renderer);
+
+        designCanvas.setFocusable(true);
+        setupMouseInteraction();
+        setupKeyInteraction();
+
+        animator = new FPSAnimator(designCanvas, 60);
+        animator.start();
+
+        if (renderer != null && designModel != null && designModel.getRoom() != null) {
+            renderer.updateCameraForModel();
+        }
+
+        setupMenuBar();
+        JPanel mainContent = new JPanel(new BorderLayout());
+
+        roomPropertiesPanel = new RoomPropertiesPanel(this);
+        furnitureLibraryPanel = new FurnitureLibraryPanel(this);
+        selectedFurniturePanel = new SelectedFurniturePanel(this);
+
+        controlPanel = createControlPanel();
+
+        mainContent.add(new JScrollPane(controlPanel), BorderLayout.WEST);
+        mainContent.add(designCanvas, BorderLayout.CENTER);
+        add(mainContent);
+
+        updateUIFromModel();
+        updateUndoRedoState();
+        if (renderer != null && showGridMenuItem != null) {
+            renderer.setShowGrid(showGridMenuItem.isSelected());
+        }
+
+        // Add these at the end of the constructor
+        pack();  // Ensure components are sized correctly
+        setLocationRelativeTo(null);  // Center on screen
     }
 
     // --- Simplified createControlPanel ---
@@ -245,12 +337,23 @@ public class MainAppFrame extends JFrame {
 
     private void setupMenuBar() { // Now recognized as defined
         JMenuBar menuBar = new JMenuBar();
+
         JMenu fileMenu = new JMenu("File");
-        JMenuItem newItem = new JMenuItem("New Design"); newItem.addActionListener(e -> handleNewDesign());
+        JMenuItem dashboardItem = new JMenuItem("Return to Dashboard");
+        dashboardItem.addActionListener(e -> returnToDashboard());
+        JMenuItem newItem = new JMenuItem("New Design");
+        newItem.addActionListener(e -> handleNewDesign());
         JMenuItem openItem = new JMenuItem("Open Design..."); openItem.addActionListener(e -> handleLoadDesign());
         JMenuItem saveItem = new JMenuItem("Save Design..."); saveItem.addActionListener(e -> handleSaveDesign());
         JMenuItem exitItem = new JMenuItem("Exit"); exitItem.addActionListener(e -> handleExit());
-        fileMenu.add(newItem); fileMenu.add(openItem); fileMenu.add(saveItem); fileMenu.addSeparator(); fileMenu.add(exitItem);
+        fileMenu.add(newItem);
+        fileMenu.add(openItem);
+        fileMenu.add(saveItem);
+        fileMenu.addSeparator();
+        fileMenu.add(exitItem);
+        fileMenu.add(dashboardItem);
+        fileMenu.addSeparator();
+        fileMenu.add(newItem);
         JMenu editMenu = new JMenu("Edit");
         JMenuItem undoItem = new JMenuItem(undoAction); JMenuItem redoItem = new JMenuItem(redoAction);
         JMenuItem deleteItem = new JMenuItem("Delete Selected Furniture"); deleteItem.addActionListener(e -> handleDeleteSelectedFurniture());
@@ -407,6 +510,41 @@ public class MainAppFrame extends JFrame {
         designCanvas.addMouseListener(mouseAdapter);
         designCanvas.addMouseMotionListener(mouseAdapter);
         designCanvas.addMouseWheelListener(mouseAdapter);
+    }
+
+    private void handleSaveDesignAs() {
+        finalizeKeyboardMove();
+
+        String suggestedName = (currentProjectName != null) ? currentProjectName : "MyDesign";
+        String newName = JOptionPane.showInputDialog(this,
+                "Enter name for project:",
+                suggestedName);
+
+        if (newName == null || newName.trim().isEmpty()) {
+            return; // User cancelled
+        }
+
+        // Use project manager to save with new name
+        ProjectManager.ProjectMetadata metadata = ProjectManager.saveNewProject(
+                designModel,
+                newName,
+                (currentUsername != null) ? currentUsername : "designer"
+        );
+
+        if (metadata != null) {
+            // Update current project info
+            currentProjectFile = new File(metadata.filename);
+            currentProjectName = metadata.projectName;
+            setTitle("Furniture Designer - " + currentProjectName);
+
+            JOptionPane.showMessageDialog(this,
+                    "Design saved successfully as " + metadata.projectName,
+                    "Save Successful", JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this,
+                    "Error saving design file.",
+                    "Save Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     // --- Keyboard Interaction ---
@@ -838,7 +976,7 @@ public class MainAppFrame extends JFrame {
     }
 
 
-    private void handleLoadDesign() { // Now recognized as defined
+    private void handleLoadDesign() {
         finalizeKeyboardMove();
         JFileChooser fc = new JFileChooser("./designs");
         fc.setDialogTitle("Open Design File");
@@ -848,53 +986,70 @@ public class MainAppFrame extends JFrame {
         int result = fc.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             File file = fc.getSelectedFile();
-            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-                DesignModel loadedModel = (DesignModel) ois.readObject();
+            try {
+                // Use ProjectManager to load the design model
+                DesignModel loadedModel = ProjectManager.loadDesignModel(file);
+
                 if (loadedModel != null) {
+                    // Update the current project information
                     designModel = loadedModel;
+                    currentProjectFile = file;
+                    currentProjectName = file.getName();
+                    if (currentProjectName.toLowerCase().endsWith(".furn")) {
+                        currentProjectName = currentProjectName.substring(0, currentProjectName.length() - 5);
+                    }
+
+                    // Update the application title to reflect the loaded project
+                    setTitle("Furniture Designer - " + currentProjectName);
+
+                    // Update renderer and UI
                     renderer.setDesignModel(designModel);
                     undoManager.discardAllEdits();
                     updateUIFromModel();
                     updateUndoRedoState();
+
+                    // Reset camera to fit the new room
+                    if (renderer != null && designModel.getRoom() != null) {
+                        renderer.updateCameraForModel();
+                    }
+
                     designCanvas.repaint();
-                    JOptionPane.showMessageDialog(this,"Design loaded successfully from " + file.getName(),"Load Successful", JOptionPane.INFORMATION_MESSAGE);
+
+                    JOptionPane.showMessageDialog(this,
+                            "Design loaded successfully from " + file.getName(),
+                            "Load Successful", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this,
+                            "Error: Could not load design file.",
+                            "Load Error", JOptionPane.ERROR_MESSAGE);
                 }
-            } catch (FileNotFoundException fnf) {
-                JOptionPane.showMessageDialog(this,"Error: File not found.\n" + fnf.getMessage(),"Load Error", JOptionPane.ERROR_MESSAGE);
-            } catch (IOException | ClassNotFoundException | ClassCastException ex) {
-                JOptionPane.showMessageDialog(this,"Error loading design file:\n" + ex.getMessage(),"Load Error", JOptionPane.ERROR_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this,
+                        "Error loading design file:\n" + ex.getMessage(),
+                        "Load Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
 
-    private void handleSaveDesign() { // Now recognized as defined
+    private void handleSaveDesign() {
         finalizeKeyboardMove();
-        JFileChooser fc = new JFileChooser("./designs");
-        fc.setDialogTitle("Save Design File");
-        FileNameExtensionFilter filter = new FileNameExtensionFilter("Furniture Design Files (*.furn)", "furn");
-        fc.setFileFilter(filter);
-        fc.setAcceptAllFileFilterUsed(false);
-        int result = fc.showSaveDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            File file = fc.getSelectedFile();
-            if (!file.getName().toLowerCase().endsWith(".furn")) {
-                file = new File(file.getParentFile(), file.getName() + ".furn");
+
+        // If we have a current project, update it
+        if (currentProjectFile != null && currentProjectFile.exists()) {
+            if (ProjectManager.updateProject(designModel, currentProjectFile)) {
+                JOptionPane.showMessageDialog(this,
+                        "Design updated successfully.",
+                        "Save Successful", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this,
+                        "Error updating design file.",
+                        "Save Error", JOptionPane.ERROR_MESSAGE);
             }
-            if (file.exists()) {
-                int overwrite = JOptionPane.showConfirmDialog(this,
-                        "File already exists. Overwrite?", "Confirm Overwrite",
-                        JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                if (overwrite == JOptionPane.NO_OPTION) {
-                    return;
-                }
-            }
-            try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file))) {
-                oos.writeObject(designModel);
-                JOptionPane.showMessageDialog(this,"Design saved successfully to " + file.getName(),"Save Successful", JOptionPane.INFORMATION_MESSAGE);
-            } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this,"Error saving design file:\n" + ex.getMessage(),"Save Error", JOptionPane.ERROR_MESSAGE);
-            }
+            return;
         }
+
+        // Otherwise, treat as Save As
+        handleSaveDesignAs();
     }
 
     private String selectTextureFile() { // Now recognized as defined
@@ -916,16 +1071,42 @@ public class MainAppFrame extends JFrame {
         }
     }
 
-    private void handleExit() { // Now recognized as defined
-        finalizeKeyboardMove();
+    // Add after other methods
+    private void returnToDashboard() {
         int choice = JOptionPane.showConfirmDialog(this,
-                "Exit the application? Unsaved changes will be lost.",
-                "Confirm Exit", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                "Return to project dashboard? Unsaved changes will be lost.",
+                "Confirm Navigation", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
         if (choice == JOptionPane.YES_OPTION) {
+            animator.stop();
+            dispose();
+
+            // Open the dashboard with the last username (if known)
+            String username = (currentUsername != null) ? currentUsername : "designer";
+            ProjectDashboardFrame dashboard = new ProjectDashboardFrame(username);
+            dashboard.setVisible(true);
+        }
+    }
+
+    // Replace the existing handleExit method
+    private void handleExit() {
+        Object[] options = {"Return to Dashboard", "Exit Application", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(this,
+                "Would you like to return to the dashboard or exit completely?\nUnsaved changes will be lost.",
+                "Navigation Options",
+                JOptionPane.YES_NO_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                options,
+                options[0]);
+
+        if (choice == 0) { // Return to Dashboard
+            returnToDashboard();
+        } else if (choice == 1) { // Exit Application
             animator.stop();
             dispose();
             // System.exit(0); // Optional
         }
+        // If choice == 2 (Cancel), do nothing
     }
 
 
