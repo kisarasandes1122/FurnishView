@@ -199,11 +199,6 @@ public class LoginFrame extends JFrame {
 
         loginButton.addActionListener(e -> handleLogin());
 
-        // Terms text
-        JLabel termsLabel = new JLabel("<html><body style='width: 300px'>By Signing up to FurnishView, means you agree to our Privacy Policy and Terms of Service</body></html>");
-        termsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        termsLabel.setForeground(Color.GRAY);
-        termsLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // Registration option
         JPanel registerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
@@ -231,7 +226,6 @@ public class LoginFrame extends JFrame {
 
         formPanel.add(loginButton);
         formPanel.add(Box.createRigidArea(new Dimension(0, 15)));
-        formPanel.add(termsLabel);
         formPanel.add(Box.createRigidArea(new Dimension(0, 25)));
         formPanel.add(registerPanel);
 
