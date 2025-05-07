@@ -171,8 +171,18 @@ public class MainAppFrame extends JFrame {
         // Use the provided model instead of creating a new one
         if (model != null) {
             this.designModel = model;
+
+            // Ensure the creator is set in the model
+            if (this.designModel.getCreatedBy() == null && username != null) {
+                this.designModel.setCreatedBy(username);
+            }
         } else {
             this.designModel = new DesignModel();
+
+            // Set the creator for new model
+            if (username != null) {
+                this.designModel.setCreatedBy(username);
+            }
         }
 
         // Continue with initialization as in original constructor
@@ -514,6 +524,11 @@ public class MainAppFrame extends JFrame {
 
     private void handleSaveDesignAs() {
         finalizeKeyboardMove();
+
+        // Ensure the creator is set before saving
+        if (designModel.getCreatedBy() == null && currentUsername != null) {
+            designModel.setCreatedBy(currentUsername);
+        }
 
         String suggestedName = (currentProjectName != null) ? currentProjectName : "MyDesign";
         String newName = JOptionPane.showInputDialog(this,
@@ -1034,6 +1049,11 @@ public class MainAppFrame extends JFrame {
     private void handleSaveDesign() {
         finalizeKeyboardMove();
 
+        // Ensure the creator is set before saving
+        if (designModel.getCreatedBy() == null && currentUsername != null) {
+            designModel.setCreatedBy(currentUsername);
+        }
+
         // If we have a current project, update it
         if (currentProjectFile != null && currentProjectFile.exists()) {
             if (ProjectManager.updateProject(designModel, currentProjectFile)) {
@@ -1048,7 +1068,6 @@ public class MainAppFrame extends JFrame {
             return;
         }
 
-        // Otherwise, treat as Save As
         handleSaveDesignAs();
     }
 

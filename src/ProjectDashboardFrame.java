@@ -15,7 +15,7 @@ import java.util.List;
  * Shows previously saved designs and options to create new ones.
  */
 public class ProjectDashboardFrame extends JFrame {
-    
+
     // UI Components
     private JPanel contentPane;
     private JPanel recentProjectsPanel;
@@ -30,134 +30,120 @@ public class ProjectDashboardFrame extends JFrame {
     private JButton logoutButton;
     private JLabel welcomeLabel;
     private JLabel statsLabel;
-    
+
     // State
     private String currentUser;
-    private List<ProjectInfo> projects;
+    private boolean isAdmin = false;
+    private List<ProjectManager.ProjectMetadata> projects;
     private Color primaryColor = new Color(64, 123, 255);
     private Color backgroundColor = new Color(245, 247, 250);
     private Font mainFont = new Font("Segoe UI", Font.PLAIN, 14);
     private Font titleFont = new Font("Segoe UI", Font.BOLD, 24);
     private Font headerFont = new Font("Segoe UI", Font.BOLD, 16);
-    
-    // Project metadata class
-    private static class ProjectInfo {
-        public String filename;
-        public String name;
-        public Date lastModified;
-        public String roomType;
-        public int itemCount;
-        
-        public ProjectInfo(String filename, String name, Date lastModified, String roomType, int itemCount) {
-            this.filename = filename;
-            this.name = name;
-            this.lastModified = lastModified;
-            this.roomType = roomType;
-            this.itemCount = itemCount;
-        }
-        
-        public Object[] toTableRow() {
-            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy HH:mm");
-            return new Object[]{
-                name,
-                roomType,
-                itemCount,
-                sdf.format(lastModified)
-            };
-        }
-    }
 
     public ProjectDashboardFrame(String username) {
         currentUser = username;
-        
+
+        // Check if user is admin (if UserManager exists)
+        try {
+            isAdmin = UserManager.isAdmin(username);
+        } catch (Exception e) {
+            // If UserManager isn't available, just continue
+            System.err.println("Warning: Could not check admin status: " + e.getMessage());
+        }
+
         // Set frame properties
         setTitle("FurnishView - Project Dashboard");
         setSize(900, 600);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(true);
-        
+
         // Initialize the UI
         initializeUI();
-        
-        // Load saved projects data
+
+        // Load saved projects data for the current user
         loadProjects();
     }
-    
+
     private void initializeUI() {
         // Main content pane with border layout
         contentPane = new JPanel(new BorderLayout(10, 10));
         contentPane.setBackground(backgroundColor);
         contentPane.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         setContentPane(contentPane);
-        
+
         // Header panel with user info
         userInfoPanel = createUserInfoPanel();
         contentPane.add(userInfoPanel, BorderLayout.NORTH);
-        
+
         // Main center panel for projects table
         recentProjectsPanel = createRecentProjectsPanel();
         contentPane.add(recentProjectsPanel, BorderLayout.CENTER);
-        
+
         // Side panel with actions
         actionsPanel = createActionsPanel();
         contentPane.add(actionsPanel, BorderLayout.EAST);
     }
-    
+
     private JPanel createUserInfoPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(backgroundColor);
         panel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
-            BorderFactory.createEmptyBorder(0, 0, 15, 0)
+                BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
+                BorderFactory.createEmptyBorder(0, 0, 15, 0)
         ));
-        
-        // Left: Welcome message
-        welcomeLabel = new JLabel("Welcome, " + currentUser + "!");
+
+        // Left: Welcome message with admin indicator if applicable
+        String welcomeMessage = isAdmin ?
+                "Welcome, " + currentUser + " (Administrator)!" :
+                "Welcome, " + currentUser + "!";
+
+        welcomeLabel = new JLabel(welcomeMessage);
         welcomeLabel.setFont(titleFont);
         welcomeLabel.setForeground(primaryColor);
         panel.add(welcomeLabel, BorderLayout.WEST);
-        
+
         // Right: User actions
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightPanel.setBackground(backgroundColor);
-        
+
         logoutButton = new JButton("Logout");
         logoutButton.setFont(mainFont);
         logoutButton.addActionListener(e -> handleLogout());
-        
+
         rightPanel.add(logoutButton);
         panel.add(rightPanel, BorderLayout.EAST);
-        
+
         return panel;
     }
-    
+
     private JPanel createRecentProjectsPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 10));
         panel.setBackground(backgroundColor);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 10));
-        
+
         // Projects table header
         JLabel headerLabel = new JLabel("Your Projects");
         headerLabel.setFont(headerFont);
         panel.add(headerLabel, BorderLayout.NORTH);
-        
+
         // Table model and setup
-        String[] columns = {"Project Name", "Room Type", "Furniture Items", "Last Modified"};
+        String[] columns = {"Project Name", "Room Type", "Furniture Items", "Last Modified", "Owner"};
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false; // Make table read-only
             }
         };
-        
+
         projectsTable = new JTable(tableModel);
         projectsTable.setRowHeight(25);
         projectsTable.setFont(mainFont);
         projectsTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
         projectsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         projectsTable.setAutoCreateRowSorter(true);
-        
+
         // Enable double-click to open
         projectsTable.addMouseListener(new MouseAdapter() {
             @Override
@@ -167,56 +153,83 @@ public class ProjectDashboardFrame extends JFrame {
                 }
             }
         });
-        
+
         JScrollPane scrollPane = new JScrollPane(projectsTable);
         panel.add(scrollPane, BorderLayout.CENTER);
-        
+
         // Statistics label
         statsLabel = new JLabel("Total Projects: 0");
         statsLabel.setFont(mainFont);
         panel.add(statsLabel, BorderLayout.SOUTH);
-        
+
         return panel;
     }
-    
+
     private JPanel createActionsPanel() {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(backgroundColor);
         panel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 1, 0, 0, Color.LIGHT_GRAY),
-            BorderFactory.createEmptyBorder(10, 15, 0, 0)
+                BorderFactory.createMatteBorder(0, 1, 0, 0, Color.LIGHT_GRAY),
+                BorderFactory.createEmptyBorder(10, 15, 0, 0)
         ));
-        
+
         // Panel title
         JLabel actionsLabel = new JLabel("Actions");
         actionsLabel.setFont(headerFont);
         actionsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(actionsLabel);
         panel.add(Box.createRigidArea(new Dimension(0, 15)));
-        
+
         // Create new project button
         createNewButton = createActionButton("Create New Project", e -> createNewProject());
         panel.add(createNewButton);
         panel.add(Box.createRigidArea(new Dimension(0, 10)));
-        
+
         // Open selected project button
         openSelectedButton = createActionButton("Open Selected", e -> openSelectedProject());
         panel.add(openSelectedButton);
         panel.add(Box.createRigidArea(new Dimension(0, 10)));
-        
+
         // Duplicate selected button
         duplicateButton = createActionButton("Duplicate Selected", e -> duplicateSelectedProject());
         panel.add(duplicateButton);
         panel.add(Box.createRigidArea(new Dimension(0, 10)));
-        
+
         // Delete selected button
         deleteSelectedButton = createActionButton("Delete Selected", e -> deleteSelectedProject());
         panel.add(deleteSelectedButton);
-        
+
+        // Add admin-specific buttons if user is admin
+        if (isAdmin) {
+            panel.add(Box.createRigidArea(new Dimension(0, 20)));
+
+            // Add a separator for admin actions
+            JSeparator separator = new JSeparator();
+            separator.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+            panel.add(separator);
+            panel.add(Box.createRigidArea(new Dimension(0, 10)));
+
+            JLabel adminLabel = new JLabel("Admin Actions");
+            adminLabel.setFont(headerFont);
+            adminLabel.setForeground(primaryColor);
+            adminLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            panel.add(adminLabel);
+            panel.add(Box.createRigidArea(new Dimension(0, 10)));
+
+            // Create template button
+            JButton createTemplateButton = createActionButton("Create Template", e -> createTemplate());
+            panel.add(createTemplateButton);
+            panel.add(Box.createRigidArea(new Dimension(0, 10)));
+
+            // Manage inventory button
+            JButton manageInventoryButton = createActionButton("Manage Inventory", e -> manageInventory());
+            panel.add(manageInventoryButton);
+        }
+
         return panel;
     }
-    
+
     private JButton createActionButton(String text, ActionListener listener) {
         JButton button = new JButton(text);
         button.setFont(mainFont);
@@ -226,68 +239,39 @@ public class ProjectDashboardFrame extends JFrame {
         button.addActionListener(listener);
         return button;
     }
-    
+
     private void loadProjects() {
         // Clear existing data
         tableModel.setRowCount(0);
         projects = new ArrayList<>();
-        
-        // Create designs directory if it doesn't exist
-        File designsDir = new File("./designs");
-        if (!designsDir.exists()) {
-            designsDir.mkdirs();
+
+        // Get projects for the current user
+        List<ProjectManager.ProjectMetadata> userProjects = ProjectManager.getProjectsForUser(currentUser);
+        projects.addAll(userProjects);
+
+        // Add to table model
+        for (ProjectManager.ProjectMetadata project : projects) {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy HH:mm");
+            Object[] rowData = {
+                    project.projectName,
+                    project.roomType,
+                    project.itemCount,
+                    sdf.format(project.lastModifiedDate),
+                    project.createdBy
+            };
+            tableModel.addRow(rowData);
         }
-        
-        // Scan directory for .furn files
-        File[] files = designsDir.listFiles((dir, name) -> name.toLowerCase().endsWith(".furn"));
-        
-        if (files != null) {
-            for (File file : files) {
-                try {
-                    // Extract basic metadata from file
-                    String filename = file.getName();
-                    String name = filename.substring(0, filename.lastIndexOf('.'));
-                    Date lastModified = new Date(file.lastModified());
-                    
-                    // Try to extract more metadata from the actual file content
-                    String roomType = "Unknown";
-                    int itemCount = 0;
-                    
-                    try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-                        DesignModel model = (DesignModel) ois.readObject();
-                        if (model != null) {
-                            if (model.getRoom() != null) {
-                                roomType = model.getRoom().getShape().toString();
-                            }
-                            if (model.getFurnitureList() != null) {
-                                itemCount = model.getFurnitureList().size();
-                            }
-                        }
-                    } catch (Exception e) {
-                        // If we can't read the file, just use the defaults
-                        System.err.println("Error reading design file metadata: " + e.getMessage());
-                    }
-                    
-                    // Create project info and add to list and table
-                    ProjectInfo project = new ProjectInfo(file.getAbsolutePath(), name, lastModified, roomType, itemCount);
-                    projects.add(project);
-                    tableModel.addRow(project.toTableRow());
-                } catch (Exception e) {
-                    System.err.println("Error processing design file: " + e.getMessage());
-                }
-            }
-        }
-        
+
         // Update statistics
         statsLabel.setText("Total Projects: " + projects.size());
-        
+
         // Disable buttons if no projects
         boolean hasProjects = !projects.isEmpty();
         openSelectedButton.setEnabled(hasProjects);
         deleteSelectedButton.setEnabled(hasProjects);
         duplicateButton.setEnabled(hasProjects);
     }
-    
+
     private void handleLogout() {
         int choice = JOptionPane.showConfirmDialog(this,
                 "Are you sure you want to logout?",
@@ -298,25 +282,38 @@ public class ProjectDashboardFrame extends JFrame {
             loginFrame.setVisible(true);
         }
     }
-    
+
     private void createNewProject() {
         // Create a blank design model
         DesignModel newModel = new DesignModel();
-        
+
+        // Set the creator to the current user
+        newModel.setCreatedBy(currentUser);
+
         // Open the main app with the new model
         this.dispose();
-        MainAppFrame mainApp = new MainAppFrame();
+        MainAppFrame mainApp = new MainAppFrame(newModel, null, null, currentUser);
         mainApp.setVisible(true);
     }
-    
+
     private void openSelectedProject() {
         int selectedRow = projectsTable.getSelectedRow();
         if (selectedRow != -1) {
             // Convert to model index if table is sorted
             int modelRow = projectsTable.convertRowIndexToModel(selectedRow);
-            
+
             if (modelRow >= 0 && modelRow < projects.size()) {
-                ProjectInfo selected = projects.get(modelRow);
+                ProjectManager.ProjectMetadata selected = projects.get(modelRow);
+
+                // Check if the current user is the owner of the project or is an admin
+                String owner = selected.createdBy;
+                if (!currentUser.equals(owner) && !isAdmin) {
+                    JOptionPane.showMessageDialog(this,
+                            "You do not have permission to open this project.",
+                            "Permission Denied", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
                 try {
                     File file = new File(selected.filename);
                     try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
@@ -324,9 +321,7 @@ public class ProjectDashboardFrame extends JFrame {
                         if (loadedModel != null) {
                             // Open the main app with the loaded model
                             this.dispose();
-                            MainAppFrame mainApp = new MainAppFrame();
-                            // Need to set the loaded model - assuming a method exists
-                            // mainApp.setDesignModel(loadedModel);
+                            MainAppFrame mainApp = new MainAppFrame(loadedModel, file, selected.projectName, currentUser);
                             mainApp.setVisible(true);
                             return;
                         }
@@ -343,56 +338,47 @@ public class ProjectDashboardFrame extends JFrame {
                     "No Selection", JOptionPane.INFORMATION_MESSAGE);
         }
     }
-    
+
     private void duplicateSelectedProject() {
         int selectedRow = projectsTable.getSelectedRow();
         if (selectedRow != -1) {
             // Convert to model index if table is sorted
             int modelRow = projectsTable.convertRowIndexToModel(selectedRow);
-            
+
             if (modelRow >= 0 && modelRow < projects.size()) {
-                ProjectInfo selected = projects.get(modelRow);
+                ProjectManager.ProjectMetadata selected = projects.get(modelRow);
+
+                // Check if the current user is the owner of the project or is an admin
+                String owner = selected.createdBy;
+                if (!currentUser.equals(owner) && !isAdmin) {
+                    JOptionPane.showMessageDialog(this,
+                            "You do not have permission to duplicate this project.",
+                            "Permission Denied", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
                 try {
-                    // Load the model
-                    File sourceFile = new File(selected.filename);
-                    DesignModel model;
-                    try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(sourceFile))) {
-                        model = (DesignModel) ois.readObject();
-                    }
-                    
-                    if (model != null) {
-                        // Get new name
-                        String newName = JOptionPane.showInputDialog(this,
-                                "Enter name for duplicate project:",
-                                selected.name + " (Copy)");
-                        
-                        if (newName != null && !newName.trim().isEmpty()) {
-                            // Create new file
-                            String newFilename = "./designs/" + newName + ".furn";
-                            if (!newFilename.toLowerCase().endsWith(".furn")) {
-                                newFilename += ".furn";
-                            }
-                            
-                            File newFile = new File(newFilename);
-                            if (newFile.exists()) {
-                                int overwrite = JOptionPane.showConfirmDialog(this,
-                                        "File already exists. Overwrite?",
-                                        "Confirm Overwrite", JOptionPane.YES_NO_OPTION);
-                                if (overwrite != JOptionPane.YES_OPTION) {
-                                    return;
-                                }
-                            }
-                            
-                            // Save the model to the new file
-                            try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(newFile))) {
-                                oos.writeObject(model);
-                                JOptionPane.showMessageDialog(this,
-                                        "Project duplicated successfully",
-                                        "Duplicate Successful", JOptionPane.INFORMATION_MESSAGE);
-                                
-                                // Reload projects
-                                loadProjects();
-                            }
+                    // Get new name
+                    String newName = JOptionPane.showInputDialog(this,
+                            "Enter name for duplicate project:",
+                            selected.projectName + " (Copy)");
+
+                    if (newName != null && !newName.trim().isEmpty()) {
+                        // Use ProjectManager to duplicate
+                        ProjectManager.ProjectMetadata newMetadata =
+                                ProjectManager.duplicateProject(selected, newName, currentUser);
+
+                        if (newMetadata != null) {
+                            JOptionPane.showMessageDialog(this,
+                                    "Project duplicated successfully",
+                                    "Duplicate Successful", JOptionPane.INFORMATION_MESSAGE);
+
+                            // Reload projects
+                            loadProjects();
+                        } else {
+                            JOptionPane.showMessageDialog(this,
+                                    "Failed to duplicate project",
+                                    "Duplication Error", JOptionPane.ERROR_MESSAGE);
                         }
                     }
                 } catch (Exception e) {
@@ -407,28 +393,36 @@ public class ProjectDashboardFrame extends JFrame {
                     "No Selection", JOptionPane.INFORMATION_MESSAGE);
         }
     }
-    
+
     private void deleteSelectedProject() {
         int selectedRow = projectsTable.getSelectedRow();
         if (selectedRow != -1) {
             // Convert to model index if table is sorted
             int modelRow = projectsTable.convertRowIndexToModel(selectedRow);
-            
+
             if (modelRow >= 0 && modelRow < projects.size()) {
-                ProjectInfo selected = projects.get(modelRow);
-                
+                ProjectManager.ProjectMetadata selected = projects.get(modelRow);
+
+                // Check if the current user is the owner of the project or is an admin
+                String owner = selected.createdBy;
+                if (!currentUser.equals(owner) && !isAdmin) {
+                    JOptionPane.showMessageDialog(this,
+                            "You do not have permission to delete this project.",
+                            "Permission Denied", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
                 int confirm = JOptionPane.showConfirmDialog(this,
-                        "Are you sure you want to delete the project \"" + selected.name + "\"?",
+                        "Are you sure you want to delete the project \"" + selected.projectName + "\"?",
                         "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                
+
                 if (confirm == JOptionPane.YES_OPTION) {
                     try {
-                        File file = new File(selected.filename);
-                        if (file.delete()) {
+                        if (ProjectManager.deleteProject(selected)) {
                             JOptionPane.showMessageDialog(this,
                                     "Project deleted successfully",
                                     "Delete Successful", JOptionPane.INFORMATION_MESSAGE);
-                            
+
                             // Reload projects
                             loadProjects();
                         } else {
@@ -447,6 +441,41 @@ public class ProjectDashboardFrame extends JFrame {
             JOptionPane.showMessageDialog(this,
                     "Please select a project to delete",
                     "No Selection", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    // Admin-specific methods
+
+    private void createTemplate() {
+        // This method will be implemented for Design Templates feature
+        JOptionPane.showMessageDialog(this,
+                "Template creation functionality will be implemented soon.",
+                "Coming Soon", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void manageInventory() {
+        // This method will be implemented for Inventory Management feature
+        JOptionPane.showMessageDialog(this,
+                "Inventory management functionality will be implemented soon.",
+                "Coming Soon", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // Method to set current user (can be used from outside)
+    public void setCurrentUser(User user) {
+        if (user != null) {
+            this.currentUser = user.getUsername();
+            this.isAdmin = user.getUserType() == User.UserType.ADMIN;
+
+            // Update welcome label if it exists
+            if (welcomeLabel != null) {
+                String welcomeMessage = isAdmin ?
+                        "Welcome, " + currentUser + " (Administrator)!" :
+                        "Welcome, " + currentUser + "!";
+                welcomeLabel.setText(welcomeMessage);
+            }
+
+            // Reload projects for this user
+            loadProjects();
         }
     }
 }

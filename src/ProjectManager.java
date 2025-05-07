@@ -66,10 +66,11 @@ public class ProjectManager {
     }
 
     /**
-     * Get a list of all available projects
-     * @return List of ProjectMetadata objects
+     * Get a list of all available projects for a specific user
+     * @param username The username to filter projects by
+     * @return List of ProjectMetadata objects belonging to the specified user
      */
-    public static List<ProjectMetadata> getAllProjects() {
+    public static List<ProjectMetadata> getProjectsForUser(String username) {
         List<ProjectMetadata> projects = new ArrayList<>();
         File dir = new File(DESIGNS_DIR);
 
@@ -88,6 +89,13 @@ public class ProjectManager {
                 if (model != null) {
                     String roomType = "Unknown";
                     int itemCount = 0;
+                    String owner = model.getCreatedBy(); // Get the owner from the model
+
+                    // Skip if the owner doesn't match the requested username
+                    // If admin, show all projects
+                    if (owner != null && !owner.equals(username) && !UserManager.isAdmin(username)) {
+                        continue;
+                    }
 
                     if (model.getRoom() != null) {
                         roomType = model.getRoom().getShape().toString();
@@ -109,7 +117,7 @@ public class ProjectManager {
                             projectName,
                             roomType,
                             itemCount,
-                            "Unknown" // We don't store user info in the model currently
+                            owner != null ? owner : "Unknown"
                     );
 
                     // Update timestamps based on file
@@ -127,6 +135,14 @@ public class ProjectManager {
         projects.sort((p1, p2) -> p2.lastModifiedDate.compareTo(p1.lastModifiedDate));
 
         return projects;
+    }
+
+    /**
+     * Get a list of all available projects (for backward compatibility)
+     * @return List of ProjectMetadata objects
+     */
+    public static List<ProjectMetadata> getAllProjects() {
+        return getProjectsForUser(null);
     }
 
     /**
@@ -162,6 +178,9 @@ public class ProjectManager {
         if (model == null || projectName == null || projectName.trim().isEmpty()) {
             return null;
         }
+
+        // Set the creator in the model
+        model.setCreatedBy(username);
 
         // Sanitize project name for use as filename
         String safeName = projectName.replaceAll("[^a-zA-Z0-9._-]", "_");
@@ -275,6 +294,9 @@ public class ProjectManager {
         if (model == null) {
             return null;
         }
+
+        // Update the creator
+        model.setCreatedBy(username);
 
         // Save as a new project
         return saveNewProject(model, newProjectName, username);

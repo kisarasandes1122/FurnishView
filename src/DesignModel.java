@@ -8,6 +8,8 @@ public class DesignModel implements Serializable {
     private Room room;
     private List<Furniture> furnitureList;
     private Furniture selectedFurniture;
+    private String createdBy; // Store the username of the creator
+
 
     public DesignModel() {
         room = new Room(5.0f, 5.0f, 3.0f);
@@ -43,6 +45,22 @@ public class DesignModel implements Serializable {
         furnitureList.clear();
         room = new Room(5.0f, 5.0f, 3.0f);
         selectedFurniture = null;
+    }
+
+    /**
+     * Get the username of the creator
+     * @return The username of the creator
+     */
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    /**
+     * Set the username of the creator
+     * @param username The username of the creator
+     */
+    public void setCreatedBy(String username) {
+        this.createdBy = username;
     }
 
 }

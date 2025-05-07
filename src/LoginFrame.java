@@ -10,6 +10,8 @@ public class LoginFrame extends JFrame {
     private Color backgroundColor = new Color(245, 247, 250);
     private Font mainFont = new Font("Segoe UI", Font.PLAIN, 14);
     private Font titleFont = new Font("Segoe UI", Font.BOLD, 28);
+    private JButton registerButton;
+
 
     public LoginFrame() {
         // Set frame properties
@@ -130,6 +132,20 @@ public class LoginFrame extends JFrame {
 
         loginButton.addActionListener(e -> handleLogin());
 
+        registerButton = new JButton("Create New Account");
+        registerButton.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        registerButton.setForeground(primaryColor);
+        registerButton.setBorderPainted(false);
+        registerButton.setContentAreaFilled(false);
+        registerButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        registerButton.addActionListener(e -> {
+            this.dispose();
+            new RegistrationFrame().setVisible(true);
+        });
+
+        buttonPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        buttonPanel.add(registerButton);
+
         // Add components to form with spacing
         formPanel.add(usernamePanel);
         formPanel.add(Box.createRigidArea(new Dimension(0, 15)));
@@ -146,9 +162,11 @@ public class LoginFrame extends JFrame {
         String username = usernameField.getText();
         String password = new String(passwordField.getPassword());
 
-        if (username.equals("designer") && password.equals("password")) {
+        if (UserManager.authenticateUser(username, password)) {
+            User user = UserManager.getUser(username);
             this.dispose();
-            // Open the ProjectDashboardFrame instead of MainAppFrame
+
+            // Since we're not changing MainAppFrame, we'll just pass the username to ProjectDashboardFrame
             ProjectDashboardFrame dashboardFrame = new ProjectDashboardFrame(username);
             dashboardFrame.setVisible(true);
         } else {
