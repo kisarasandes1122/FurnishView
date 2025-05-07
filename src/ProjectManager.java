@@ -30,10 +30,12 @@ public class ProjectManager {
         public int itemCount;
         public String description;
         public String createdBy;
+        public double estimatedPrice;
+
 
         // Constructor
         public ProjectMetadata(String filename, String projectName, String roomType,
-                               int itemCount, String createdBy) {
+                               int itemCount, String createdBy, double estimatedPrice) {
             this.filename = filename;
             this.projectName = projectName;
             this.creationDate = new Date();
@@ -42,6 +44,7 @@ public class ProjectManager {
             this.itemCount = itemCount;
             this.description = "";
             this.createdBy = createdBy;
+            this.estimatedPrice = estimatedPrice;
         }
 
         // Returns a formatted string with last modified date
@@ -73,6 +76,7 @@ public class ProjectManager {
     public static List<ProjectMetadata> getProjectsForUser(String username) {
         List<ProjectMetadata> projects = new ArrayList<>();
         File dir = new File(DESIGNS_DIR);
+
 
         if (!dir.exists() || !dir.isDirectory()) {
             initializeDesignsDirectory();
@@ -111,13 +115,16 @@ public class ProjectManager {
                         projectName = projectName.substring(0, projectName.length() - FILE_EXTENSION.length());
                     }
 
+                    double estimatedPrice = model.calculateTotalPrice();
+
                     // Create metadata entry
                     ProjectMetadata metadata = new ProjectMetadata(
                             file.getAbsolutePath(),
                             projectName,
                             roomType,
                             itemCount,
-                            owner != null ? owner : "Unknown"
+                            owner != null ? owner : "Unknown",
+                            estimatedPrice
                     );
 
                     // Update timestamps based on file
@@ -199,6 +206,9 @@ public class ProjectManager {
         // Ensure the directory exists
         initializeDesignsDirectory();
 
+        // Calculate estimated price
+        double estimatedPrice = model.calculateTotalPrice();
+
         // Save the model
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file))) {
             oos.writeObject(model);
@@ -220,7 +230,8 @@ public class ProjectManager {
                     projectName,
                     roomType,
                     itemCount,
-                    username
+                    username,
+                    estimatedPrice
             );
 
             return metadata;

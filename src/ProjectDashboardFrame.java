@@ -7,6 +7,7 @@ import java.awt.event.*;
 import java.awt.geom.Rectangle2D;
 import java.io.*;
 import java.nio.file.*;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
@@ -138,7 +139,7 @@ public class ProjectDashboardFrame extends JFrame {
         panel.add(headerLabel, BorderLayout.NORTH);
 
         // Table model and setup
-        String[] columns = {"Project Name", "Room Type", "Furniture Items", "Last Modified", "Owner"};
+        String[] columns = {"Project Name", "Room Type", "Furniture Items", "Estimated Cost (Rs)", "Last Modified", "Owner"};
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -247,13 +248,6 @@ public class ProjectDashboardFrame extends JFrame {
             panel.add(adminLabel);
             panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
-            // Create template button
-            JButton createTemplateButton = createCustomButton("Create Template");
-            createTemplateButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-            createTemplateButton.addActionListener(e -> createTemplate());
-            panel.add(createTemplateButton);
-            panel.add(Box.createRigidArea(new Dimension(0, 10)));
-
             // Manage inventory button
             JButton manageInventoryButton = createCustomButton("Manage Inventory");
             manageInventoryButton.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -337,12 +331,27 @@ public class ProjectDashboardFrame extends JFrame {
         projects.addAll(userProjects);
 
         // Add to table model
+        DecimalFormat df = new DecimalFormat("0.00");
         for (ProjectManager.ProjectMetadata project : projects) {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy HH:mm");
+
+            // Calculate estimated price for the project
+            double estimatedPrice = 0.0;
+            File file = new File(project.filename);
+            try {
+                DesignModel model = ProjectManager.loadDesignModel(file);
+                if (model != null) {
+                    estimatedPrice = model.calculateTotalPrice();
+                }
+            } catch (Exception e) {
+                System.err.println("Error calculating price for project: " + e.getMessage());
+            }
+
             Object[] rowData = {
                     project.projectName,
                     project.roomType,
                     project.itemCount,
+                    df.format(estimatedPrice),
                     sdf.format(project.lastModifiedDate),
                     project.createdBy
             };
@@ -358,6 +367,8 @@ public class ProjectDashboardFrame extends JFrame {
         deleteSelectedButton.setEnabled(hasProjects);
         duplicateButton.setEnabled(hasProjects);
     }
+
+
 
     private void handleLogout() {
         int choice = JOptionPane.showConfirmDialog(this,
@@ -531,20 +542,11 @@ public class ProjectDashboardFrame extends JFrame {
         }
     }
 
-    // Admin-specific methods
 
-    private void createTemplate() {
-        // This method will be implemented for Design Templates feature
-        JOptionPane.showMessageDialog(this,
-                "Template creation functionality will be implemented soon.",
-                "Coming Soon", JOptionPane.INFORMATION_MESSAGE);
-    }
 
     private void manageInventory() {
-        // This method will be implemented for Inventory Management feature
-        JOptionPane.showMessageDialog(this,
-                "Inventory management functionality will be implemented soon.",
-                "Coming Soon", JOptionPane.INFORMATION_MESSAGE);
+        InventoryManagementFrame inventoryFrame = new InventoryManagementFrame(this);
+        inventoryFrame.setVisible(true);
     }
 
     // Method to set current user (can be used from outside)

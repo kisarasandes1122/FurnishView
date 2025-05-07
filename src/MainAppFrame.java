@@ -67,6 +67,9 @@ public class MainAppFrame extends JFrame {
     private boolean isRotatingWithKeyboard = false;
     private float keyboardRotateStartAngle = 0f;
     private static final float KEYBOARD_ROTATE_STEP = 5.0f;
+    private FloatingPricePanel floatingPricePanel;
+    private JToggleButton togglePricePanelButton;
+
 
     // --- Furniture Library Data (Make static and add getters) ---
     private static final String[] FURNITURE_TYPES = {
@@ -152,6 +155,8 @@ public class MainAppFrame extends JFrame {
         pack();  // Ensure components are sized correctly
         setLocationRelativeTo(null);  // Center on screen
         applyFlatButtonStylingToAllButtons();
+        floatingPricePanel = new FloatingPricePanel(this);
+        floatingPricePanel.setVisible(false);
     }
 
     public MainAppFrame(DesignModel model, File projectFile, String projectName, String username) {
@@ -237,6 +242,8 @@ public class MainAppFrame extends JFrame {
         pack();  // Ensure components are sized correctly
         setLocationRelativeTo(null);  // Center on screen
         applyFlatButtonStylingToAllButtons();
+        floatingPricePanel = new FloatingPricePanel(this);
+        floatingPricePanel.setVisible(false);
     }
 
     // --- Simplified createControlPanel ---
@@ -255,6 +262,7 @@ public class MainAppFrame extends JFrame {
         panel.add(selectedFurniturePanel.getPanel());
         panel.add(Box.createVerticalStrut(15));
 
+
         // --- Keep View Controls Section Here ---
         JPanel viewPanel = createSectionPanel("View Controls");
         viewPanel.setLayout(new FlowLayout(FlowLayout.LEADING));
@@ -265,9 +273,21 @@ public class MainAppFrame extends JFrame {
         viewPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, viewPanel.getPreferredSize().height));
         panel.add(viewPanel);
 
+        togglePricePanelButton = new JToggleButton("Show Price Panel");
+        togglePricePanelButton.addActionListener(e -> togglePricePanel());
+        viewPanel.add(Box.createHorizontalStrut(10));
+        viewPanel.add(togglePricePanelButton);
+
         panel.add(Box.createVerticalGlue()); // Pushes content to the top
 
         return panel;
+    }
+
+    private void togglePricePanel() {
+        floatingPricePanel.toggleVisibility();
+        togglePricePanelButton.setText(
+                floatingPricePanel.isVisible() ? "Hide Price Panel" : "Show Price Panel"
+        );
     }
 
     private JPanel createSectionPanel(String title) {
@@ -289,6 +309,10 @@ public class MainAppFrame extends JFrame {
         }
         if (selectedFurniturePanel != null) {
             selectedFurniturePanel.updateUI(designModel);
+        }
+
+        if (floatingPricePanel != null) {
+            floatingPricePanel.updatePriceData(designModel);
         }
 
         // Update components still managed directly by MainAppFrame (like the Edit menu)
@@ -386,6 +410,9 @@ public class MainAppFrame extends JFrame {
         showGridMenuItem = new JCheckBoxMenuItem("Show Grid", true);
         showGridMenuItem.addActionListener(e -> { if (renderer != null) { renderer.setShowGrid(showGridMenuItem.isSelected()); designCanvas.repaint(); } });
         viewMenu.add(view2DItem); viewMenu.add(view3DItem); viewMenu.addSeparator(); viewMenu.add(showGridMenuItem);
+        JMenuItem togglePricePanelMenuItem = new JMenuItem("Toggle Price Panel");
+        togglePricePanelMenuItem.addActionListener(e -> togglePricePanel());
+        viewMenu.add(togglePricePanelMenuItem);
         JMenu helpMenu = new JMenu("Help");
         menuBar.add(fileMenu); menuBar.add(editMenu); menuBar.add(viewMenu); menuBar.add(helpMenu); setJMenuBar(menuBar);
     }
@@ -1309,6 +1336,9 @@ public class MainAppFrame extends JFrame {
         if (choice == 0) { // Return to Dashboard
             returnToDashboard();
         } else if (choice == 1) { // Exit Application
+            if (floatingPricePanel != null) {
+                floatingPricePanel.dispose();
+            }
             animator.stop();
             dispose();
             // System.exit(0); // Optional
@@ -1346,13 +1376,24 @@ public class MainAppFrame extends JFrame {
 
 
     // --- Undoable Edit Classes (Inner classes) ---
-    private class AddFurnitureEdit extends AbstractUndoableEdit { // Now recognized
+    private class AddFurnitureEdit extends AbstractUndoableEdit {
         private final Furniture addedFurniture;
         public AddFurnitureEdit(Furniture f) { this.addedFurniture = f; }
         @Override public String getPresentationName() { return "Add " + addedFurniture.getType(); }
-        @Override public void undo() throws CannotUndoException { super.undo(); designModel.removeFurniture(addedFurniture); updateUIFromModel(); designCanvas.repaint(); }
-        @Override public void redo() throws CannotRedoException { super.redo(); designModel.addFurniture(addedFurniture); updateUIFromModel(); designCanvas.repaint(); }
+        @Override public void undo() throws CannotUndoException {
+            super.undo();
+            designModel.removeFurniture(addedFurniture);
+            updateUIFromModel(); // This will now update the price panel too
+            designCanvas.repaint();
+        }
+        @Override public void redo() throws CannotRedoException {
+            super.redo();
+            designModel.addFurniture(addedFurniture);
+            updateUIFromModel(); // This will now update the price panel too
+            designCanvas.repaint();
+        }
     }
+
     private class RemoveFurnitureEdit extends AbstractUndoableEdit { // Now recognized
         private final Furniture removedFurniture;
         public RemoveFurnitureEdit(Furniture f) { this.removedFurniture = f; }

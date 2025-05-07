@@ -1,6 +1,8 @@
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.io.Serializable;
 
 public class DesignModel implements Serializable {
@@ -63,4 +65,36 @@ public class DesignModel implements Serializable {
         this.createdBy = username;
     }
 
+    /**
+     * Calculate the total price for all furniture in this design
+     * @return The total price of all furniture
+     */
+    public double calculateTotalPrice() {
+        return InventoryManager.calculateTotalPrice(this);
+    }
+
+    /**
+     * Get a detailed price breakdown for all furniture in this design
+     * @return Map with furniture types as keys and their total prices as values
+     */
+    public Map<String, Double> getPriceBreakdown() {
+        return InventoryManager.getPriceBreakdown(this);
+    }
+
+    /**
+     * Get the count of each furniture type in the design
+     * @return Map with furniture types as keys and their counts as values
+     */
+    public Map<String, Integer> getFurnitureCounts() {
+        Map<String, Integer> counts = new HashMap<>();
+
+        if (furnitureList != null) {
+            for (Furniture furniture : furnitureList) {
+                String type = furniture.getType();
+                counts.put(type, counts.getOrDefault(type, 0) + 1);
+            }
+        }
+
+        return counts;
+    }
 }
