@@ -1,4 +1,5 @@
-// START OF FILE RoomPropertiesPanel.java
+// Modified RoomPropertiesPanel.java
+// This version has been updated to prevent color buttons from changing appearance
 
 import javax.swing.*;
 import javax.swing.border.Border;
@@ -29,6 +30,10 @@ public class RoomPropertiesPanel {
     private static final String CIRC_CARD = "Circular";
     private static final String L_CARD = "L-Shaped";
     private static final String T_CARD = "T-Shaped";
+
+    // Constants for button colors
+    private static final Color BUTTON_BACKGROUND = new Color(64, 64, 64);
+    private static final Color BUTTON_FOREGROUND = Color.WHITE;
 
     public RoomPropertiesPanel(MainAppFrame mainAppFrame) {
         this.mainAppFrame = mainAppFrame;
@@ -135,44 +140,63 @@ public class RoomPropertiesPanel {
         mainPanel.add(Box.createVerticalStrut(10));
 
         // --- Room Appearance ---
-        JPanel roomAppearancePanel = new JPanel();
-        roomAppearancePanel.setLayout(new BoxLayout(roomAppearancePanel, BoxLayout.Y_AXIS));
+        JPanel roomAppearancePanel = new JPanel(new GridLayout(3, 2, 10, 10));
         roomAppearancePanel.setBorder(BorderFactory.createTitledBorder("Appearance"));
 
         wallColorButton = new JButton("Set Wall Color");
-        wallColorButton.addActionListener(e -> mainAppFrame.handleSetRoomColor(true));
         floorColorButton = new JButton("Set Floor Color");
-        floorColorButton.addActionListener(e -> mainAppFrame.handleSetRoomColor(false));
-        JButton wallTextureButtonLocal = new JButton("Set Wall Texture...");
-        wallTextureButtonLocal.addActionListener(e -> mainAppFrame.handleSetRoomTexture(true));
-        JButton floorTextureButtonLocal = new JButton("Set Floor Texture...");
-        floorTextureButtonLocal.addActionListener(e -> mainAppFrame.handleSetRoomTexture(false));
+        JButton wallTextureButton = new JButton("Set Wall Texture");
+        JButton floorTextureButton = new JButton("Set Floor Texture");
         resetWallAppearanceButton = new JButton("Reset Wall Appearance");
-        resetWallAppearanceButton.addActionListener(e -> mainAppFrame.handleResetRoomAppearance(true));
         resetFloorAppearanceButton = new JButton("Reset Floor Appearance");
+
+        // Set fixed appearance for color buttons
+        applyFixedButtonStyle(wallColorButton);
+        applyFixedButtonStyle(floorColorButton);
+        applyFixedButtonStyle(wallTextureButton);
+        applyFixedButtonStyle(floorTextureButton);
+        applyFixedButtonStyle(resetWallAppearanceButton);
+        applyFixedButtonStyle(resetFloorAppearanceButton);
+
+        wallColorButton.addActionListener(e -> mainAppFrame.handleSetRoomColor(true));
+        floorColorButton.addActionListener(e -> mainAppFrame.handleSetRoomColor(false));
+        wallTextureButton.addActionListener(e -> mainAppFrame.handleSetRoomTexture(true));
+        floorTextureButton.addActionListener(e -> mainAppFrame.handleSetRoomTexture(false));
+        resetWallAppearanceButton.addActionListener(e -> mainAppFrame.handleResetRoomAppearance(true));
         resetFloorAppearanceButton.addActionListener(e -> mainAppFrame.handleResetRoomAppearance(false));
 
-        wallColorButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-        floorColorButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-        wallTextureButtonLocal.setAlignmentX(Component.LEFT_ALIGNMENT);
-        floorTextureButtonLocal.setAlignmentX(Component.LEFT_ALIGNMENT);
-        resetWallAppearanceButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-        resetFloorAppearanceButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-
         roomAppearancePanel.add(wallColorButton);
-        roomAppearancePanel.add(Box.createVerticalStrut(5));
-        roomAppearancePanel.add(resetWallAppearanceButton);
-        roomAppearancePanel.add(Box.createVerticalStrut(10));
         roomAppearancePanel.add(floorColorButton);
-        roomAppearancePanel.add(Box.createVerticalStrut(5));
+        roomAppearancePanel.add(wallTextureButton);
+        roomAppearancePanel.add(floorTextureButton);
+        roomAppearancePanel.add(resetWallAppearanceButton);
         roomAppearancePanel.add(resetFloorAppearanceButton);
-        roomAppearancePanel.add(Box.createVerticalStrut(10));
-        roomAppearancePanel.add(wallTextureButtonLocal);
-        roomAppearancePanel.add(Box.createVerticalStrut(5));
-        roomAppearancePanel.add(floorTextureButtonLocal);
 
         roomAppearancePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         mainPanel.add(roomAppearancePanel);
+    }
+
+    /**
+     * Applies a fixed style to the button regardless of color selection
+     */
+    private void applyFixedButtonStyle(JButton button) {
+        button.setBackground(BUTTON_BACKGROUND);
+        button.setForeground(BUTTON_FOREGROUND);
+        button.setBorderPainted(false);
+        button.setFocusPainted(false);
+        button.setContentAreaFilled(true);
+        button.setOpaque(true);
+        button.setMargin(new Insets(5, 10, 5, 10));
+
+        // Override UI to remove any platform-specific styling
+        button.setUI(new javax.swing.plaf.basic.BasicButtonUI() {
+            @Override
+            protected void paintButtonPressed(Graphics g, AbstractButton b) {
+                // Override to prevent pressed effect - make it stay the same color
+                g.setColor(BUTTON_BACKGROUND);
+                g.fillRect(0, 0, b.getWidth(), b.getHeight());
+            }
+        });
     }
 
     private JPanel createSectionPanel(String title) {
@@ -182,7 +206,10 @@ public class RoomPropertiesPanel {
         return panel;
     }
 
-    /** Updates the UI components within this panel based on the model */
+    /**
+     * Updates the UI components within this panel based on the model
+     * MODIFIED to prevent color button appearance changes
+     */
     public void updateUI(DesignModel designModel) {
         if (designModel == null || designModel.getRoom() == null) return;
         Room room = designModel.getRoom();
@@ -227,11 +254,8 @@ public class RoomPropertiesPanel {
                 break;
         }
 
-        // Update appearance buttons
-        wallColorButton.setBackground(room.getWallColor());
-        wallColorButton.setForeground(mainAppFrame.getContrastColor(room.getWallColor()));
-        floorColorButton.setBackground(room.getFloorColor());
-        floorColorButton.setForeground(mainAppFrame.getContrastColor(room.getFloorColor()));
+        // REMOVED: The code that would change button colors has been removed
+        // We're now using fixed button styles instead
     }
 
     // --- Getters for MainAppFrame handlers ---
@@ -250,4 +274,3 @@ public class RoomPropertiesPanel {
     public JTextField getTStemWidthField() { return tStemWidthField; }
     public JTextField getTStemLengthField() { return tStemLengthField; }
 }
-// END OF FILE RoomPropertiesPanel.java

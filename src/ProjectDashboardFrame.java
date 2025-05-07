@@ -39,7 +39,7 @@ public class ProjectDashboardFrame extends JFrame {
 
     // Updated color palette with natural, desaturated tones
     private Color textColor = new Color(68, 68, 68);      // Dark gray instead of black
-    private Color backgroundColor = new Color(245, 245, 245); // Soft warm white
+    private Color backgroundColor = new Color(255, 255, 255); // Soft warm white
     private Color accentColor = new Color(213, 204, 189); // Light taupe/beige
     private Color subtleGray = new Color(240, 240, 238);  // Very light gray for dividers
     private Color headerBgColor = new Color(245, 244, 240); // Barely-there background for header

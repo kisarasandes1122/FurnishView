@@ -64,6 +64,10 @@ public class MainAppFrame extends JFrame {
     private String currentProjectName = null;
     private String currentUsername = null;
 
+    private boolean isRotatingWithKeyboard = false;
+    private float keyboardRotateStartAngle = 0f;
+    private static final float KEYBOARD_ROTATE_STEP = 5.0f;
+
     // --- Furniture Library Data (Make static and add getters) ---
     private static final String[] FURNITURE_TYPES = {
             "Chair", "Sofa", "Dining Table", "Side Table", "Bed", "Bookshelf",
@@ -90,8 +94,8 @@ public class MainAppFrame extends JFrame {
     public MainAppFrame() {
         // Basic setup
         setTitle("Furniture Designer - New Design");
-        setSize(1400, 900);  // Original size
-        setMinimumSize(new Dimension(800, 600));  // Prevent UI from disappearing
+        setSize(1600, 1000);    // Original size
+        setMinimumSize(new Dimension(1600, 1000));  // Prevent UI from disappearing
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
@@ -147,6 +151,7 @@ public class MainAppFrame extends JFrame {
         // Add these at the end of the constructor
         pack();  // Ensure components are sized correctly
         setLocationRelativeTo(null);  // Center on screen
+        applyFlatButtonStylingToAllButtons();
     }
 
     public MainAppFrame(DesignModel model, File projectFile, String projectName, String username) {
@@ -157,8 +162,8 @@ public class MainAppFrame extends JFrame {
 
         // Set up the frame
         setTitle("Furniture Designer - " + (projectName != null ? projectName : "New Design"));
-        setSize(1400, 900);
-        setMinimumSize(new Dimension(800, 600));  // Prevent UI from disappearing
+        setSize(1600, 1000);
+        setMinimumSize(new Dimension(1600, 1000));  // Prevent UI from disappearing
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
@@ -228,8 +233,10 @@ public class MainAppFrame extends JFrame {
         }
 
         // Add these at the end of the constructor
+
         pack();  // Ensure components are sized correctly
         setLocationRelativeTo(null);  // Center on screen
+        applyFlatButtonStylingToAllButtons();
     }
 
     // --- Simplified createControlPanel ---
@@ -237,6 +244,8 @@ public class MainAppFrame extends JFrame {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        panel.setPreferredSize(new Dimension(400, panel.getPreferredSize().height));
+
 
         // Add the panels obtained from the dedicated classes
         panel.add(roomPropertiesPanel.getPanel());
@@ -389,6 +398,7 @@ public class MainAppFrame extends JFrame {
             public void mousePressed(MouseEvent e) {
                 lastMousePoint = e.getPoint();
                 designCanvas.requestFocusInWindow(); // Request focus
+                finalizeKeyboardMove();
 
                 if (SwingUtilities.isRightMouseButton(e)) {
                     isDraggingFurniture = false;
@@ -573,7 +583,7 @@ public class MainAppFrame extends JFrame {
         });
     }
 
-    private void handleKeyPress(KeyEvent e) { // Now recognized as defined
+    private void handleKeyPress(KeyEvent e) {
         Furniture selected = designModel.getSelectedFurniture();
         if (selected == null) return;
 
@@ -608,15 +618,71 @@ public class MainAppFrame extends JFrame {
             }
             designCanvas.repaint();
 
+        } else if (keyCode == KeyEvent.VK_Q || keyCode == KeyEvent.VK_E) {
+            // New rotation handling
+            if (!isRotatingWithKeyboard) {
+                isRotatingWithKeyboard = true;
+                keyboardRotateStartAngle = selected.getRotation().y;
+            }
+
+            float rotationAmount = 0;
+            if (keyCode == KeyEvent.VK_Q) rotationAmount = -KEYBOARD_ROTATE_STEP; // Counter-clockwise
+            if (keyCode == KeyEvent.VK_E) rotationAmount = KEYBOARD_ROTATE_STEP;  // Clockwise
+
+            // Apply rotation
+            float currentRotation = selected.getRotation().y;
+            float newRotation = currentRotation + rotationAmount;
+
+            // Normalize the rotation to 0-360 degrees
+            while (newRotation >= 360) newRotation -= 360;
+            while (newRotation < 0) newRotation += 360;
+
+            selected.getRotation().y = newRotation;
+
+            // Update the rotation field in the UI
+            if (selectedFurniturePanel != null) {
+                JTextField rotField = selectedFurniturePanel.getFurnRotationYField();
+                if (rotField != null && !rotField.hasFocus()) {
+                    rotField.setText(String.format("%.1f", newRotation));
+                }
+            }
+
+            designCanvas.repaint();
         } else if (keyCode == KeyEvent.VK_DELETE || keyCode == KeyEvent.VK_BACK_SPACE) {
             handleDeleteSelectedFurniture();
         }
         else if (keyCode == KeyEvent.VK_ESCAPE) {
             cancelKeyboardMove();
+            cancelKeyboardRotate(); // We'll add this method
         }
     }
 
-    private void handleKeyRelease(KeyEvent e) { // Now recognized as defined
+    private void finalizeKeyboardRotate() {
+        if (isRotatingWithKeyboard) {
+            Furniture selected = designModel.getSelectedFurniture();
+            if (selected != null && Math.abs(selected.getRotation().y - keyboardRotateStartAngle) > 0.5f) {
+                registerUndoableEdit(new ChangeFurnitureRotationEdit(selected, selected.getRotation().y));
+            }
+            isRotatingWithKeyboard = false;
+            keyboardRotateStartAngle = 0f;
+            updateUndoRedoState();
+        }
+    }
+
+    private void cancelKeyboardRotate() {
+        if (isRotatingWithKeyboard) {
+            Furniture selected = designModel.getSelectedFurniture();
+            if (selected != null) {
+                selected.getRotation().y = keyboardRotateStartAngle;
+            }
+            isRotatingWithKeyboard = false;
+            keyboardRotateStartAngle = 0f;
+            designCanvas.repaint();
+            System.out.println("Keyboard rotation cancelled.");
+        }
+    }
+
+    private void handleKeyRelease(KeyEvent e) {
         int keyCode = e.getKeyCode();
         if (keyCode == KeyEvent.VK_UP || keyCode == KeyEvent.VK_DOWN ||
                 keyCode == KeyEvent.VK_LEFT || keyCode == KeyEvent.VK_RIGHT)
@@ -627,9 +693,13 @@ public class MainAppFrame extends JFrame {
                 finalizeKeyboardMove();
             }
         }
+        else if (keyCode == KeyEvent.VK_Q || keyCode == KeyEvent.VK_E) {
+            // When Q or E are released, finalize the rotation
+            finalizeKeyboardRotate();
+        }
     }
 
-    private void finalizeKeyboardMove() { // Now recognized as defined
+    private void finalizeKeyboardMove() {
         if (isMovingWithKeyboard && keyboardMoveStartPosition != null) {
             Furniture selected = designModel.getSelectedFurniture();
             if (selected != null && !selected.getPosition().equals(keyboardMoveStartPosition)) {
@@ -640,6 +710,9 @@ public class MainAppFrame extends JFrame {
             updateUndoRedoState();
         }
         pressedKeys.clear();
+
+        // Also finalize any rotation
+        finalizeKeyboardRotate();
     }
 
     private void cancelKeyboardMove() { // Now recognized as defined
@@ -751,6 +824,121 @@ public class MainAppFrame extends JFrame {
         } else {
             JOptionPane.showMessageDialog(this, "Please select a furniture type from the library.", "No Furniture Selected", JOptionPane.INFORMATION_MESSAGE);
         }
+    }
+
+    /**
+     * Applies a flat button style with dark grey background and white text to all buttons in the application.
+     */
+    private void applyFlatButtonStylingToAllButtons() {
+        // Apply styling to all buttons in controlPanel
+        applyFlatButtonStylingToContainer(controlPanel);
+
+        // Also apply to any other containers with buttons
+        if (roomPropertiesPanel != null) {
+            applyFlatButtonStylingToContainer(roomPropertiesPanel.getPanel());
+        }
+        if (furnitureLibraryPanel != null) {
+            applyFlatButtonStylingToContainer(furnitureLibraryPanel.getPanel());
+        }
+        if (selectedFurniturePanel != null) {
+            applyFlatButtonStylingToContainer(selectedFurniturePanel.getPanel());
+        }
+    }
+
+    /**
+     * Recursively applies flat button styling to all JButtons in a container
+     * @param container The container to process
+     */
+    private void applyFlatButtonStylingToContainer(Container container) {
+        if (container == null) return;
+
+        // Apply to all components in this container
+        for (Component comp : container.getComponents()) {
+            if (comp instanceof JButton) {
+                applyFlatButtonStyle((JButton) comp);
+            } else if (comp instanceof Container) {
+                // Recursively process nested containers
+                applyFlatButtonStylingToContainer((Container) comp);
+            }
+        }
+    }
+
+    /**
+     * Applies a flat button style with hover effects.
+     * Reset and Delete buttons get a muted red style.
+     * @param button The JButton to style
+     */
+    private void applyFlatButtonStyle(JButton button) {
+        // Check if this is a "caution" button (reset or delete)
+        boolean isCautionButton = button.getText().contains("Reset") ||
+                button.getText().contains("Delete");
+
+        // Default colors - different for regular vs caution buttons
+        final Color defaultBackground = isCautionButton ?
+                new Color(255, 220, 220) : new Color(255, 255, 255);
+        final Color defaultForeground = isCautionButton ?
+                new Color(180, 0, 0) : new Color(24, 24, 24);
+        final Color hoverBackground = isCautionButton ?
+                new Color(255, 200, 200) : new Color(114, 114, 114);
+        final Color pressedBackground = isCautionButton ?
+                new Color(200, 0, 0) : new Color(64, 64, 64);
+        final Color pressedForeground = Color.WHITE;
+
+        // Initial appearance
+        button.setBackground(defaultBackground);
+        button.setForeground(defaultForeground);
+
+        // Remove border and focus painted effects
+        button.setBorderPainted(false);
+        button.setFocusPainted(false);
+
+        // Ensure the background is painted
+        button.setContentAreaFilled(true);
+        button.setOpaque(true);
+
+        // Add some padding for better appearance
+        button.setMargin(new Insets(5, 10, 5, 10));
+
+        // Add mouse listeners for hover effects
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                button.setBackground(hoverBackground);
+                button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            }
+
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                button.setBackground(defaultBackground);
+                button.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+            }
+
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                button.setBackground(pressedBackground);
+                button.setForeground(pressedForeground);
+            }
+
+            @Override
+            public void mouseReleased(java.awt.event.MouseEvent e) {
+                if (button.contains(e.getPoint())) {
+                    button.setBackground(hoverBackground); // Still hovering
+                } else {
+                    button.setBackground(defaultBackground); // Mouse moved away
+                }
+                button.setForeground(defaultForeground);
+            }
+        });
+
+        // Override UI to remove any platform-specific styling
+        button.setUI(new javax.swing.plaf.basic.BasicButtonUI() {
+            @Override
+            protected void paintButtonPressed(Graphics g, AbstractButton b) {
+                // Override to prevent default pressed effect
+                g.setColor(pressedBackground);
+                g.fillRect(0, 0, b.getWidth(), b.getHeight());
+            }
+        });
     }
 
     protected void handleUpdateRoomSize() { // Make protected or public
