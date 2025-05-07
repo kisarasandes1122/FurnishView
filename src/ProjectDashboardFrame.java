@@ -4,6 +4,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.geom.Rectangle2D;
 import java.io.*;
 import java.nio.file.*;
 import java.text.SimpleDateFormat;
@@ -35,11 +36,18 @@ public class ProjectDashboardFrame extends JFrame {
     private String currentUser;
     private boolean isAdmin = false;
     private List<ProjectManager.ProjectMetadata> projects;
-    private Color primaryColor = new Color(64, 123, 255);
-    private Color backgroundColor = new Color(245, 247, 250);
+
+    // Updated color palette with natural, desaturated tones
+    private Color textColor = new Color(68, 68, 68);      // Dark gray instead of black
+    private Color backgroundColor = new Color(245, 245, 245); // Soft warm white
+    private Color accentColor = new Color(213, 204, 189); // Light taupe/beige
+    private Color subtleGray = new Color(240, 240, 238);  // Very light gray for dividers
+    private Color headerBgColor = new Color(245, 244, 240); // Barely-there background for header
+
     private Font mainFont = new Font("Segoe UI", Font.PLAIN, 14);
     private Font titleFont = new Font("Segoe UI", Font.BOLD, 24);
     private Font headerFont = new Font("Segoe UI", Font.BOLD, 16);
+    private Font buttonFont = new Font("Segoe UI", Font.BOLD, 14);
 
     public ProjectDashboardFrame(String username) {
         currentUser = username;
@@ -90,7 +98,7 @@ public class ProjectDashboardFrame extends JFrame {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(backgroundColor);
         panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
+                BorderFactory.createMatteBorder(0, 0, 1, 0, subtleGray),
                 BorderFactory.createEmptyBorder(0, 0, 15, 0)
         ));
 
@@ -101,15 +109,15 @@ public class ProjectDashboardFrame extends JFrame {
 
         welcomeLabel = new JLabel(welcomeMessage);
         welcomeLabel.setFont(titleFont);
-        welcomeLabel.setForeground(primaryColor);
+        welcomeLabel.setForeground(textColor);  // Changed from primaryColor to textColor
         panel.add(welcomeLabel, BorderLayout.WEST);
 
         // Right: User actions
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightPanel.setBackground(backgroundColor);
 
-        logoutButton = new JButton("Logout");
-        logoutButton.setFont(mainFont);
+        // Custom flat dark logout button
+        logoutButton = createCustomButton("Logout");
         logoutButton.addActionListener(e -> handleLogout());
 
         rightPanel.add(logoutButton);
@@ -126,6 +134,7 @@ public class ProjectDashboardFrame extends JFrame {
         // Projects table header
         JLabel headerLabel = new JLabel("Your Projects");
         headerLabel.setFont(headerFont);
+        headerLabel.setForeground(textColor);
         panel.add(headerLabel, BorderLayout.NORTH);
 
         // Table model and setup
@@ -140,7 +149,15 @@ public class ProjectDashboardFrame extends JFrame {
         projectsTable = new JTable(tableModel);
         projectsTable.setRowHeight(25);
         projectsTable.setFont(mainFont);
+        projectsTable.setForeground(textColor);
+        projectsTable.setBackground(backgroundColor);
+        projectsTable.setGridColor(subtleGray);
+        projectsTable.setShowGrid(false);  // Remove grid lines
+        projectsTable.setIntercellSpacing(new Dimension(10, 5));  // Use spacing instead of grid
         projectsTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
+        projectsTable.getTableHeader().setForeground(textColor);
+        projectsTable.getTableHeader().setBackground(headerBgColor);
+        projectsTable.getTableHeader().setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, subtleGray));
         projectsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         projectsTable.setAutoCreateRowSorter(true);
 
@@ -155,11 +172,14 @@ public class ProjectDashboardFrame extends JFrame {
         });
 
         JScrollPane scrollPane = new JScrollPane(projectsTable);
+        scrollPane.setBorder(BorderFactory.createLineBorder(subtleGray, 1));
+        scrollPane.getViewport().setBackground(backgroundColor);
         panel.add(scrollPane, BorderLayout.CENTER);
 
         // Statistics label
         statsLabel = new JLabel("Total Projects: 0");
         statsLabel.setFont(mainFont);
+        statsLabel.setForeground(textColor);
         panel.add(statsLabel, BorderLayout.SOUTH);
 
         return panel;
@@ -170,34 +190,43 @@ public class ProjectDashboardFrame extends JFrame {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(backgroundColor);
         panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 1, 0, 0, Color.LIGHT_GRAY),
+                BorderFactory.createMatteBorder(0, 1, 0, 0, subtleGray),
                 BorderFactory.createEmptyBorder(10, 15, 0, 0)
         ));
 
         // Panel title
         JLabel actionsLabel = new JLabel("Actions");
         actionsLabel.setFont(headerFont);
+        actionsLabel.setForeground(textColor);
         actionsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(actionsLabel);
         panel.add(Box.createRigidArea(new Dimension(0, 15)));
 
-        // Create new project button
-        createNewButton = createActionButton("Create New Project", e -> createNewProject());
+        // Create new project button - with dark styling
+        createNewButton = createCustomButton("Create New Project");
+        createNewButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        createNewButton.addActionListener(e -> createNewProject());
         panel.add(createNewButton);
         panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
-        // Open selected project button
-        openSelectedButton = createActionButton("Open Selected", e -> openSelectedProject());
+        // Secondary actions with the same dark style
+        openSelectedButton = createCustomButton("Open Selected");
+        openSelectedButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        openSelectedButton.addActionListener(e -> openSelectedProject());
         panel.add(openSelectedButton);
         panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
         // Duplicate selected button
-        duplicateButton = createActionButton("Duplicate Selected", e -> duplicateSelectedProject());
+        duplicateButton = createCustomButton("Duplicate Selected");
+        duplicateButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        duplicateButton.addActionListener(e -> duplicateSelectedProject());
         panel.add(duplicateButton);
         panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
         // Delete selected button
-        deleteSelectedButton = createActionButton("Delete Selected", e -> deleteSelectedProject());
+        deleteSelectedButton = createCustomButton("Delete Selected");
+        deleteSelectedButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        deleteSelectedButton.addActionListener(e -> deleteSelectedProject());
         panel.add(deleteSelectedButton);
 
         // Add admin-specific buttons if user is admin
@@ -207,36 +236,94 @@ public class ProjectDashboardFrame extends JFrame {
             // Add a separator for admin actions
             JSeparator separator = new JSeparator();
             separator.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+            separator.setForeground(subtleGray);
             panel.add(separator);
             panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
             JLabel adminLabel = new JLabel("Admin Actions");
             adminLabel.setFont(headerFont);
-            adminLabel.setForeground(primaryColor);
+            adminLabel.setForeground(textColor);
             adminLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
             panel.add(adminLabel);
             panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
             // Create template button
-            JButton createTemplateButton = createActionButton("Create Template", e -> createTemplate());
+            JButton createTemplateButton = createCustomButton("Create Template");
+            createTemplateButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+            createTemplateButton.addActionListener(e -> createTemplate());
             panel.add(createTemplateButton);
             panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
             // Manage inventory button
-            JButton manageInventoryButton = createActionButton("Manage Inventory", e -> manageInventory());
+            JButton manageInventoryButton = createCustomButton("Manage Inventory");
+            manageInventoryButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+            manageInventoryButton.addActionListener(e -> manageInventory());
             panel.add(manageInventoryButton);
         }
 
         return panel;
     }
 
-    private JButton createActionButton(String text, ActionListener listener) {
-        JButton button = new JButton(text);
-        button.setFont(mainFont);
-        button.setMaximumSize(new Dimension(200, 35));
-        button.setPreferredSize(new Dimension(180, 35));
-        button.setAlignmentX(Component.LEFT_ALIGNMENT);
-        button.addActionListener(listener);
+    // Custom button creation method with flat dark style
+    private JButton createCustomButton(String text) {
+        boolean isLogoutButton = text.equals("Logout");
+        final Color buttonBgColor = isLogoutButton ? new Color(220, 53, 69) : new Color(102, 102, 102); // Red for logout, beige for others
+        final Color buttonTextColor = Color.WHITE ;
+
+        JButton button = new JButton(text) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                // Set button background color based on button type
+                g2d.setColor(buttonBgColor);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+
+                Font buttonTextFont = new Font("Inter", Font.BOLD, 14);
+                g2d.setFont(buttonTextFont);
+
+                // Draw text centered
+                FontMetrics fm = g2d.getFontMetrics();
+                Rectangle2D r = fm.getStringBounds(getText(), g2d);
+                int x = (getWidth() - (int) r.getWidth()) / 2;
+                int y = (getHeight() - (int) r.getHeight()) / 2 + fm.getAscent();
+                g2d.setColor(buttonTextColor); // Text color based on button type
+                g2d.drawString(getText(), x, y);
+                g2d.dispose();
+            }
+
+            // Override these methods to prevent default button styling
+            @Override
+            protected void paintBorder(Graphics g) {
+                // Don't paint any border
+            }
+
+            @Override
+            public boolean isFocusPainted() {
+                return false;
+            }
+
+            @Override
+            public boolean isContentAreaFilled() {
+                return false;
+            }
+        };
+
+        Font buttonFont = new Font("Inter", Font.BOLD, 14);
+
+        // Button styling
+        button.setFont(buttonFont);
+        button.setForeground(buttonTextColor);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        // Set consistent size
+        button.setMaximumSize(new Dimension(200, 45));
+        button.setPreferredSize(new Dimension(180, 45));
+
         return button;
     }
 
@@ -472,6 +559,7 @@ public class ProjectDashboardFrame extends JFrame {
                         "Welcome, " + currentUser + " (Administrator)!" :
                         "Welcome, " + currentUser + "!";
                 welcomeLabel.setText(welcomeMessage);
+                welcomeLabel.setForeground(textColor);  // Ensure text color is consistent
             }
 
             // Reload projects for this user

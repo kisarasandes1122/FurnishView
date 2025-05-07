@@ -2,6 +2,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import javax.swing.border.*;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 import java.io.File;
@@ -149,23 +150,56 @@ public class RegistrationFrame extends JFrame {
         buttonPanel.setMaximumSize(new Dimension(FORM_ELEMENT_WIDTH, 45));
         buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JButton registerButton = new JButton("CREATE ACCOUNT");
-        registerButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        registerButton.setBackground(Color.WHITE);
-        registerButton.setForeground(Color.BLACK);
-        registerButton.setBorder(new EmptyBorder(10, 0, 10, 0));
-        registerButton.setFocusPainted(false);
-        registerButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        JButton registerButton = new JButton("CREATE ACCOUNT") {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
+                // Dark button style with no border
+                g2d.setColor(new Color(41, 45, 50)); // Dark slate color
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+
+                // Draw text centered
+                FontMetrics fm = g2d.getFontMetrics();
+                Rectangle2D r = fm.getStringBounds(getText(), g2d);
+                int x = (getWidth() - (int) r.getWidth()) / 2;
+                int y = (getHeight() - (int) r.getHeight()) / 2 + fm.getAscent();
+                g2d.setColor(Color.WHITE); // White text
+                g2d.drawString(getText(), x, y);
+                g2d.dispose();
+            }
+
+            // Override these methods to prevent default button styling
+            @Override
+            protected void paintBorder(Graphics g) {
+                // Don't paint any border
+            }
+
+            @Override
+            public boolean isFocusPainted() {
+                return false;
+            }
+
+            @Override
+            public boolean isContentAreaFilled() {
+                return false;
+            }
+        };
+
+        registerButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        registerButton.setForeground(Color.WHITE); // Set text color to white
+        registerButton.setFocusPainted(false);
+        registerButton.setBorderPainted(false);
+        registerButton.setContentAreaFilled(false);
+        registerButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
         buttonPanel.add(registerButton, BorderLayout.CENTER);
 
-        // Add hover effect to button
-        registerButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                registerButton.setBackground(Color.DARK_GRAY);            }
+        int buttonHeight = 60; // Set your desired height
+        buttonPanel.setPreferredSize(new Dimension(FORM_ELEMENT_WIDTH, buttonHeight));
+        buttonPanel.setMaximumSize(new Dimension(FORM_ELEMENT_WIDTH, buttonHeight));
 
-        });
+
 
         registerButton.addActionListener(e -> handleRegistration());
 
