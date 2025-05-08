@@ -23,47 +23,47 @@ public class InventoryManager {
      */
     private static void initializeDefaultPrices() {
         // Basic furniture
-        furniturePrices.put("Chair", new FurniturePrice("Chair", 99.99, 100));
-        furniturePrices.put("Sofa", new FurniturePrice("Sofa", 599.99, 50));
-        furniturePrices.put("Dining Table", new FurniturePrice("Dining Table", 399.99, 80));
-        furniturePrices.put("Side Table", new FurniturePrice("Side Table", 79.99, 90));
-        furniturePrices.put("Bed", new FurniturePrice("Bed", 499.99, 30));
-        furniturePrices.put("Bookshelf", new FurniturePrice("Bookshelf", 249.99, 60));
+        furniturePrices.put("Chair", new FurniturePrice("Chair", 25000.00, 25000.00));
+        furniturePrices.put("Sofa", new FurniturePrice("Sofa", 85000.00, 15000.00));
+        furniturePrices.put("Dining Table", new FurniturePrice("Dining Table", 45000.00, 12000.00));
+        furniturePrices.put("Side Table", new FurniturePrice("Side Table", 12500.00, 15000.00));
+        furniturePrices.put("Bed", new FurniturePrice("Bed", 65000.00, 10000.00));
+        furniturePrices.put("Bookshelf", new FurniturePrice("Bookshelf", 35000.00, 8000.00));
 
         // Seating
-        furniturePrices.put("Armchair", new FurniturePrice("Armchair", 349.99, 70));
-        furniturePrices.put("Dining Chair", new FurniturePrice("Dining Chair", 129.99, 80));
-        furniturePrices.put("Office Chair", new FurniturePrice("Office Chair", 199.99, 90));
-        furniturePrices.put("Stool", new FurniturePrice("Stool", 69.99, 120));
-        furniturePrices.put("Bench", new FurniturePrice("Bench", 199.99, 60));
-        furniturePrices.put("Recliner", new FurniturePrice("Recliner", 499.99, 55));
-        furniturePrices.put("Ottoman", new FurniturePrice("Ottoman", 129.99, 100));
+        furniturePrices.put("Armchair", new FurniturePrice("Armchair", 32000.00, 20000.00));
+        furniturePrices.put("Dining Chair", new FurniturePrice("Dining Chair", 18000.00, 22000.00));
+        furniturePrices.put("Office Chair", new FurniturePrice("Office Chair", 22000.00, 18000.00));
+        furniturePrices.put("Stool", new FurniturePrice("Stool", 8500.00, 15000.00));
+        furniturePrices.put("Bench", new FurniturePrice("Bench", 19999.00, 6000.00));
+        furniturePrices.put("Recliner", new FurniturePrice("Recliner", 75000.00, 12500.00));
+        furniturePrices.put("Ottoman", new FurniturePrice("Ottoman", 15000.00, 18000.00));
 
         // Tables
-        furniturePrices.put("Coffee Table", new FurniturePrice("Coffee Table", 199.99, 85));
-        furniturePrices.put("Desk", new FurniturePrice("Desk", 299.99, 75));
-        furniturePrices.put("Console Table", new FurniturePrice("Console Table", 249.99, 80));
-        furniturePrices.put("End Table", new FurniturePrice("End Table", 89.99, 95));
+        furniturePrices.put("Coffee Table", new FurniturePrice("Coffee Table", 28000.00, 12000.00));
+        furniturePrices.put("Desk", new FurniturePrice("Desk", 42000.00, 9500.00));
+        furniturePrices.put("Console Table", new FurniturePrice("Console Table", 32500.00, 11000.00));
+        furniturePrices.put("End Table", new FurniturePrice("End Table", 8999.00, 9500.00));
 
         // Storage
-        furniturePrices.put("Wardrobe", new FurniturePrice("Wardrobe", 699.99, 45));
-        furniturePrices.put("Dresser", new FurniturePrice("Dresser", 449.99, 50));
-        furniturePrices.put("Filing Cabinet", new FurniturePrice("Filing Cabinet", 199.99, 60));
-        furniturePrices.put("TV Stand", new FurniturePrice("TV Stand", 249.99, 70));
-        furniturePrices.put("Chest of Drawers", new FurniturePrice("Chest of Drawers", 349.99, 55));
+        furniturePrices.put("Wardrobe", new FurniturePrice("Wardrobe", 95000.00, 7500.00));
+        furniturePrices.put("Dresser", new FurniturePrice("Dresser", 55000.00, 9000.00));
+        furniturePrices.put("Filing Cabinet", new FurniturePrice("Filing Cabinet", 19999.00, 6000.00));
+        furniturePrices.put("TV Stand", new FurniturePrice("TV Stand", 24999.00, 7000.00));
+        furniturePrices.put("Chest of Drawers", new FurniturePrice("Chest of Drawers", 48000.00, 8500.00));
 
         // Beds
-        furniturePrices.put("Twin Bed", new FurniturePrice("Twin Bed", 349.99, 40));
-        furniturePrices.put("Queen Bed", new FurniturePrice("Queen Bed", 549.99, 35));
-        furniturePrices.put("King Bed", new FurniturePrice("King Bed", 699.99, 30));
-        furniturePrices.put("Bunk Bed", new FurniturePrice("Bunk Bed", 599.99, 40));
-        furniturePrices.put("Murphy Bed", new FurniturePrice("Murphy Bed", 899.99, 35));
+        furniturePrices.put("Twin Bed", new FurniturePrice("Twin Bed", 48000.00, 6000.00));
+        furniturePrices.put("Queen Bed", new FurniturePrice("Queen Bed", 85000.00, 5500.00));
+        furniturePrices.put("King Bed", new FurniturePrice("King Bed", 110000.00, 5000.00));
+        furniturePrices.put("Bunk Bed", new FurniturePrice("Bunk Bed", 78000.00, 7500.00));
+        furniturePrices.put("Murphy Bed", new FurniturePrice("Murphy Bed", 125000.00, 8000.00));
 
         // Miscellaneous
-        furniturePrices.put("Headboard", new FurniturePrice("Headboard", 199.99, 60));
-        furniturePrices.put("Crib", new FurniturePrice("Crib", 299.99, 70));
-        furniturePrices.put("Chaise Lounge", new FurniturePrice("Chaise Lounge", 499.99, 50));
-        furniturePrices.put("Futon", new FurniturePrice("Futon", 399.99, 45));
+        furniturePrices.put("Headboard", new FurniturePrice("Headboard", 22000.00, 6500.00));
+        furniturePrices.put("Crib", new FurniturePrice("Crib", 29999.00, 7000.00));
+        furniturePrices.put("Chaise Lounge", new FurniturePrice("Chaise Lounge", 49999.00, 5000.00));
+        furniturePrices.put("Futon", new FurniturePrice("Futon", 39999.00, 4500.00));
     }
 
     /**

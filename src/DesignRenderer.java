@@ -315,18 +315,14 @@ public class DesignRenderer implements GLEventListener {
 
     // --- Room Drawing Logic ---
 
-    // --- MODIFIED: Main drawRoom switches based on shape ---
     private void drawRoom(GL2 gl, Room room) {
-        // Save state - Importantly saves GL_ENABLE_BIT which includes GL_CULL_FACE state
         gl.glPushAttrib(GL2.GL_ENABLE_BIT | GL2.GL_TEXTURE_BIT | GL2.GL_CURRENT_BIT | GL2.GL_POLYGON_BIT | GL2.GL_LINE_BIT | GL2.GL_DEPTH_BUFFER_BIT);
 
-        // Common setup: Disable culling for floor drawing to ensure top face is visible
         boolean cullingWasEnabled = gl.glIsEnabled(GL2.GL_CULL_FACE);
         if (cullingWasEnabled) {
             gl.glDisable(GL2.GL_CULL_FACE);
         }
 
-        // --- Draw Floor based on Shape ---
         switch (room.getShape()) {
             case RECTANGULAR: drawRectangularFloor(gl, room); break;
             case CIRCULAR:    drawCircularFloor(gl, room); break;
@@ -334,13 +330,10 @@ public class DesignRenderer implements GLEventListener {
             case T_SHAPED:    drawTShapeFloor(gl, room); break;
         }
 
-        // --- Restore Culling BEFORE drawing walls ---
-        // Crucial so that wall backfaces are culled correctly
         if (cullingWasEnabled) {
             gl.glEnable(GL2.GL_CULL_FACE);
         }
 
-        // --- Draw Walls or Outline based on Shape ---
         if (cameraManager.is3DMode()) {
             switch (room.getShape()) {
                 case RECTANGULAR: drawRectangularWalls(gl, room); break;
@@ -348,7 +341,7 @@ public class DesignRenderer implements GLEventListener {
                 case L_SHAPED:    drawLShapeWalls(gl, room); break;
                 case T_SHAPED:    drawTShapeWalls(gl, room); break;
             }
-        } else { // 2D Mode Outline
+        } else {
             switch (room.getShape()) {
                 case RECTANGULAR: drawRectangularOutline(gl, room); break;
                 case CIRCULAR:    drawCircularOutline(gl, room); break;
@@ -357,8 +350,8 @@ public class DesignRenderer implements GLEventListener {
             }
         }
 
-        // Restore all attributes saved by glPushAttrib, including original cull state
-        gl.glPopAttrib();    }
+        gl.glPopAttrib();
+    }
 
     // --- Helper methods for drawing each shape ---
 

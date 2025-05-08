@@ -799,7 +799,7 @@ public class MainAppFrame extends JFrame {
     }
 
     // --- File/Action Handlers (Protected/Public for panel access) ---
-    protected void handleAddFurniture() { // Make protected or public
+    protected void handleAddFurniture() {
         finalizeKeyboardMove();
         JList<String> libraryList = furnitureLibraryPanel.getFurnitureLibraryList();
         int selectedIndex = libraryList.getSelectedIndex();
@@ -826,7 +826,12 @@ public class MainAppFrame extends JFrame {
 
                 Furniture newFurniture = new Furniture(type, initialPos, w, d, h);
                 designModel.addFurniture(newFurniture);
-                registerUndoableEdit(new AddFurnitureEdit(newFurniture)); // Defined below
+                registerUndoableEdit(new AddFurnitureEdit(newFurniture));
+
+                // Ensure UI is updated including price panels
+                updateUIFromModel();
+
+                // Update undo/redo state
                 updateUndoRedoState();
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(this,"Invalid dimensions for new furniture. Using defaults.","Input Error", JOptionPane.WARNING_MESSAGE);
@@ -842,7 +847,12 @@ public class MainAppFrame extends JFrame {
 
                     Furniture newFurniture = new Furniture(defaultType, initialPos, w, d, h);
                     designModel.addFurniture(newFurniture);
-                    registerUndoableEdit(new AddFurnitureEdit(newFurniture)); // Defined below
+                    registerUndoableEdit(new AddFurnitureEdit(newFurniture));
+
+                    // Ensure UI is updated including price panels
+                    updateUIFromModel();
+
+                    // Update undo/redo state
                     updateUndoRedoState();
                 } catch (Exception finalEx) {
                     JOptionPane.showMessageDialog(this,"Failed to add furniture with defaults: " + finalEx.getMessage(),"Error", JOptionPane.ERROR_MESSAGE);
@@ -1045,7 +1055,7 @@ public class MainAppFrame extends JFrame {
         }
     }
 
-    protected void handleUpdateFurnitureDimensions() { // Make protected or public
+    protected void handleUpdateFurnitureDimensions() {
         finalizeKeyboardMove();
         Furniture selected = designModel.getSelectedFurniture();
         if (selected == null || selectedFurniturePanel == null) return;
@@ -1069,7 +1079,11 @@ public class MainAppFrame extends JFrame {
                     return;
                 }
 
-                registerUndoableEdit(new ChangeFurnitureDimensionsEdit(selected, newWidth, newDepth, newHeight)); // Defined below
+                registerUndoableEdit(new ChangeFurnitureDimensionsEdit(selected, newWidth, newDepth, newHeight));
+
+                // Make sure UI is updated including price panels
+                updateUIFromModel();
+
                 updateUndoRedoState();
             }
 
@@ -1146,15 +1160,32 @@ public class MainAppFrame extends JFrame {
         updateUndoRedoState();
     }
 
-    protected void handleDeleteSelectedFurniture() { // Make protected or public
+    protected void handleDeleteSelectedFurniture() {
         finalizeKeyboardMove();
         Furniture selected = designModel.getSelectedFurniture();
         if (selected != null) {
-            designModel.removeFurniture(selected);
-            registerUndoableEdit(new RemoveFurnitureEdit(selected)); // Defined below
+            // Store a reference to the furniture before removing it
+            Furniture furnitureToRemove = selected;
+
+            // Remove from model (this also sets selected furniture to null)
+            designModel.removeFurniture(furnitureToRemove);
+
+            // Register the undoable edit
+            registerUndoableEdit(new RemoveFurnitureEdit(furnitureToRemove));
+
+            // Ensure UI is updated including price panels
+            updateUIFromModel();
+
+            // Refresh canvas
+            designCanvas.repaint();
+
+            // Update undo/redo state
             updateUndoRedoState();
         } else {
-            JOptionPane.showMessageDialog(this, "No furniture selected to delete.", "Delete Furniture", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                    "No furniture selected to delete.",
+                    "Delete Furniture",
+                    JOptionPane.INFORMATION_MESSAGE);
         }
     }
 
@@ -1394,12 +1425,33 @@ public class MainAppFrame extends JFrame {
         }
     }
 
-    private class RemoveFurnitureEdit extends AbstractUndoableEdit { // Now recognized
+    private class RemoveFurnitureEdit extends AbstractUndoableEdit {
         private final Furniture removedFurniture;
-        public RemoveFurnitureEdit(Furniture f) { this.removedFurniture = f; }
-        @Override public String getPresentationName() { return "Remove " + removedFurniture.getType(); }
-        @Override public void undo() throws CannotUndoException { super.undo(); designModel.addFurniture(removedFurniture); updateUIFromModel(); designCanvas.repaint(); }
-        @Override public void redo() throws CannotRedoException { super.redo(); designModel.removeFurniture(removedFurniture); updateUIFromModel(); designCanvas.repaint(); }
+
+        public RemoveFurnitureEdit(Furniture f) {
+            this.removedFurniture = f;
+        }
+
+        @Override
+        public String getPresentationName() {
+            return "Remove " + removedFurniture.getType();
+        }
+
+        @Override
+        public void undo() throws CannotUndoException {
+            super.undo();
+            designModel.addFurniture(removedFurniture);
+            updateUIFromModel(); // This already exists and should update all panels
+            designCanvas.repaint();
+        }
+
+        @Override
+        public void redo() throws CannotRedoException {
+            super.redo();
+            designModel.removeFurniture(removedFurniture);
+            updateUIFromModel(); // This already exists and should update all panels
+            designCanvas.repaint();
+        }
     }
     private class MoveFurnitureEdit extends AbstractUndoableEdit { // Now recognized
         private final Furniture movedFurniture; private final Vector3f oldPos, newPos;
@@ -1409,19 +1461,45 @@ public class MainAppFrame extends JFrame {
         @Override public void undo() throws CannotUndoException { super.undo(); movedFurniture.setPosition(oldPos); designModel.setSelectedFurniture(movedFurniture); updateUIFromModel(); designCanvas.repaint(); }
         @Override public void redo() throws CannotRedoException { super.redo(); movedFurniture.setPosition(newPos); designModel.setSelectedFurniture(movedFurniture); updateUIFromModel(); designCanvas.repaint(); }
     }
-    private class ChangeFurnitureDimensionsEdit extends AbstractUndoableEdit { // Now recognized
-        private final Furniture furniture; private final float oldW, oldD, oldH, newW, newD, newH;
+    private class ChangeFurnitureDimensionsEdit extends AbstractUndoableEdit {
+        private final Furniture furniture;
+        private final float oldW, oldD, oldH, newW, newD, newH;
+
         public ChangeFurnitureDimensionsEdit(Furniture f, float nw, float nd, float nh) {
             this.furniture = f;
             this.oldW = f.getWidth(); this.oldD = f.getDepth(); this.oldH = f.getHeight();
             this.newW = nw; this.newD = nd; this.newH = nh;
             apply(newW, newD, newH); // Apply immediately
         }
-        private void apply(float w, float d, float h) { furniture.setWidth(w); furniture.setDepth(d); furniture.setHeight(h); }
-        @Override public String getPresentationName() { return "Resize " + furniture.getType(); }
-        @Override public void undo() throws CannotUndoException { super.undo(); apply(oldW, oldD, oldH); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
-        @Override public void redo() throws CannotRedoException { super.redo(); apply(newW, newD, newH); designModel.setSelectedFurniture(furniture); updateUIFromModel(); designCanvas.repaint(); }
+
+        private void apply(float w, float d, float h) {
+            furniture.setWidth(w); furniture.setDepth(d); furniture.setHeight(h);
+        }
+
+        @Override
+        public String getPresentationName() {
+            return "Resize " + furniture.getType();
+        }
+
+        @Override
+        public void undo() throws CannotUndoException {
+            super.undo();
+            apply(oldW, oldD, oldH);
+            designModel.setSelectedFurniture(furniture);
+            updateUIFromModel(); // This will update all panels including price panel
+            designCanvas.repaint();
+        }
+
+        @Override
+        public void redo() throws CannotRedoException {
+            super.redo();
+            apply(newW, newD, newH);
+            designModel.setSelectedFurniture(furniture);
+            updateUIFromModel(); // This will update all panels including price panel
+            designCanvas.repaint();
+        }
     }
+
     private class ChangeFurnitureRotationEdit extends AbstractUndoableEdit { // Now recognized
         private final Furniture furniture; private final float oldRotY, newRotY;
         public ChangeFurnitureRotationEdit(Furniture f, float newRot) {
